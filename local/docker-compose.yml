@@ -25,6 +25,23 @@ services:
       timeout: 5s
       retries: 5
 
+  # Tax File Service
+  badhtaxfileserv:
+    image: badhtaxfileserv:v1.0.4
+    container_name: taxrefund_badhtaxfileserv
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-taxrefund_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-taxrefund_password}
+      DATABASE_URL: jdbc:postgresql://postgres:5432/taxrefund?currentSchema=taxfileservdb
+    ports:
+      - "4000:4000"
+    networks:
+      - taxrefund_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   # Optional: pgAdmin for database management
   pgadmin:
     image: dpage/pgadmin4:latest

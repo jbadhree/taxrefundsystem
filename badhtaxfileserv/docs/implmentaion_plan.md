@@ -1,7 +1,7 @@
 ## badhtaxfileserv - Implementation Plan
 
 ### 1) Goals and Scope
-- Build a new Java Spring Boot (Gradle) microservice `badhtaxfileserv`.
+- Build a new Java Spring Boot (Maven) microservice `badhtaxfileserv`.
 - Persist data in local Postgres at URL `postgresql://taxrefund_user:taxrefund_password@localhost:5432/taxrefund?schema=taxfileservdb`.
   - Note for JDBC: we will use `jdbc:postgresql://localhost:5432/taxrefund?currentSchema=taxfileservdb` and set schema in Spring/Hibernate/Flyway configs.
 - Expose HTTP on port 4000.
@@ -17,7 +17,7 @@
 - Cross-service user validation.
 
 ### 3) Architecture and Tech Stack
-- Spring Boot 3.x, Java 21, Gradle (Kotlin or Groovy DSL; choose Groovy for simplicity).
+- Spring Boot 3.x, Java 21, Maven.
 - Spring Web (REST), Spring Validation, Spring Data JPA, Flyway, PostgreSQL Driver, Jackson.
 - Testing: JUnit 5, Mockito, Testcontainers, Spring Boot Test, WireMock.
 - API Documentation: SpringDoc OpenAPI 3, Swagger UI.
@@ -360,7 +360,7 @@ public class OpenAPIConfig {
 ### 10) Dockerization
 
 #### 10.1 Dockerfile Configuration
-- Multi-stage Dockerfile building the jar via Gradle and running with `SERVER_PORT=4000`.
+- Multi-stage Dockerfile building the jar via Maven and running with `SERVER_PORT=4000`.
 - Health endpoint: rely on Spring Boot actuator later (optional). For now default 200 on `/` not required.
 
 #### 10.2 Docker Image Build and Push
@@ -420,7 +420,7 @@ docker run -p 4000:4000 \
 ```
 
 ### 11) Step-by-Step Implementation Plan
-1. Scaffold Spring Boot project with Gradle, Java 21, dependencies: web, validation, data-jpa, postgres, flyway, testcontainers, openapi.
+1. Scaffold Spring Boot project with Maven, Java 21, dependencies: web, validation, data-jpa, postgres, flyway, testcontainers, openapi.
 2. Add `application.yml` with **environment-specific database configuration** (local + cloud support).
 3. Implement Flyway `V1__init.sql` migration (schema + both tables + triggers for `updated_at`).
 4. Create JPA entities `TaxFile`, `Refund`, and `RefundEvent` + repositories.

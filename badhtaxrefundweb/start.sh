@@ -6,3 +6,4 @@ export PORT=${PORT:-8080}
 
 # Start the Next.js server
 exec node server.js
+

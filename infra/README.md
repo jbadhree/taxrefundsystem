@@ -1,240 +1,141 @@
-# BadhTaxRefundSystem - Infrastructure
+# Tax Refund System Infrastructure
 
-This directory contains Pulumi infrastructure code to deploy the BadhTaxRefundSystem to Google Cloud Run using a Docker Hub image. Currently includes the `badhtaxrefundweb` component. The configuration is set up for production deployment.
+This Pulumi project deploys the complete Tax Refund System infrastructure on Google Cloud Platform.
 
-## System Architecture
+## Architecture
 
-**BadhTaxRefundSystem** is the overall system name with the following components:
+The infrastructure includes:
 
-- **badhtaxrefundweb**: NextJS web application (currently deployed)
-- *Additional components can be added as needed (e.g., API service, database, etc.)*
+1. **Cloud SQL PostgreSQL Database**
+   - Instance: `taxrefund-db` (db-f1-micro tier)
+   - Database: `taxrefund`
+   - User: `taxrefund_user`
+   - Schemas: `taxfileservdb`, `userservdb`, `aimlservdb`, `taxfilebatchdb`, `taxrefundbatchdb`, `irsdb`
 
-### Adding New Components
-
-To add a new service component, you would:
-
-1. Add new config variables (e.g., `apiServiceName`, `apiImageName`)
-2. Create new Cloud Run service resources in `__main__.py`
-3. Export the new service outputs
-
-Example for future API service:
-```yaml
-# Pulumi.prod.yaml
-badhtaxrefundsystem:apiServiceName: badhtaxrefundapi
-badhtaxrefundsystem:apiImageName: jbadhree/badhtaxrefundapi:v1.0.0
-```
+2. **Cloud Run Services**
+   - **Web Service**: `badhtaxrefundweb` (Next.js frontend)
+   - **File Service**: `badhtaxfileserv` (Spring Boot backend)
 
 ## Prerequisites
 
-1. **Google Cloud SDK**: Install and authenticate with `gcloud auth login`
-2. **Pulumi CLI**: Install from [pulumi.com](https://www.pulumi.com/docs/get-started/install/)
-3. **Python 3.8+**: Required for Pulumi Python runtime
+1. Install Pulumi CLI
+2. Install Python 3.8+
+3. Install required Python packages:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Configure Google Cloud authentication
+5. Set up Pulumi stack
 
-## Setup
+## Configuration
 
-### 1. Install Dependencies
+### Required Configuration
 
-```bash
-cd infra
-pip install -r requirements.txt
-```
-
-### 2. Configure Pulumi
-
-```bash
-# Set your Google Cloud project (gcloud will be used automatically)
-gcloud config set project YOUR_PROJECT_ID
-
-# Set required configuration
-pulumi config set webServiceName badhtaxrefundweb
-pulumi config set webImageName jbadhree/badhtaxrefundweb:v1.0.0
-
-# Optional: Set region (defaults to us-central1)
-pulumi config set region us-central1
-```
-
-**Note**: If you need to create a new stack, run `pulumi stack init prod` first.
-
-### 3. Deploy Infrastructure
+Set the following configuration values in your Pulumi stack:
 
 ```bash
-# Preview the deployment
-pulumi preview
+# Database password (required secret)
+pulumi config set --secret dbPassword "your-secure-password"
 
-# Deploy the infrastructure
-pulumi up
+# Service names and images
+pulumi config set webServiceName "badhtaxrefundweb"
+pulumi config set webImageName "jbadhree/badhtaxrefundweb:v1.0.8"
+pulumi config set fileServiceName "badhtaxfileserv"
+pulumi config set fileImageName "jbadhree/badhtaxfileserv:v1.0.0"
+
+# Database configuration (optional - defaults provided)
+pulumi config set dbInstanceName "taxrefund-db"
+pulumi config set dbName "taxrefund"
+pulumi config set dbUser "taxrefund_user"
 ```
 
-## What Gets Created
+### Optional Configuration
 
-### Google Cloud Resources
+- `region`: GCP region (default: us-central1)
+- `dbInstanceName`: Database instance name (default: taxrefund-db)
+- `dbName`: Database name (default: taxrefund)
+- `dbUser`: Database user (default: taxrefund_user)
 
-1. **Cloud Run Service**: `tax-refund-web`
-   - Runs the NextJS application from Docker Hub
-   - Uses image: `jbadhree/badhtaxrefundweb:v1.0.0`
-   - Configured with appropriate resource limits
-   - Publicly accessible (no authentication required)
+## Deployment
 
-2. **IAM Policy**: Allows unauthenticated access to the Cloud Run service
+1. **Initialize Pulumi** (if not already done):
+   ```bash
+   pulumi stack init prod
+   ```
 
-### Configuration
+2. **Set configuration**:
+   ```bash
+   pulumi config set --secret dbPassword "your-secure-password"
+   ```
 
-- **CPU**: 500m request, 1000m limit
-- **Memory**: 256Mi request, 512Mi limit
-- **Concurrency**: 80 requests per container
-- **Timeout**: 300 seconds
-- **Auto-scaling**: 0-10 instances
+3. **Deploy infrastructure**:
+   ```bash
+   pulumi up
+   ```
 
-## Environment Variables
+4. **View outputs**:
+   ```bash
+   pulumi stack output
+   ```
 
-The Cloud Run service is configured with:
-- `NODE_ENV=production`
-- `PORT=3000`
+## Database Initialization
 
-## Deployment Process
+The database is automatically initialized with the following schemas:
+- `taxfileservdb` - Tax file management
+- `userservdb` - User management and authentication
+- `aimlservdb` - AI/ML model management
+- `taxfilebatchdb` - Tax file batch processing
+- `taxrefundbatchdb` - Tax refund batch processing
+- `irsdb` - IRS data and interactions
 
-1. **Build & Push**: Docker image is built and pushed to Docker Hub
-2. **Deploy**: Cloud Run service uses the Docker Hub image
-3. **Scale**: Service automatically scales based on traffic
+## Service Configuration
 
-### Updating the Docker Image
+### File Service Environment Variables
 
-To update the Docker image version, use Pulumi config:
+The `badhtaxfileserv` Cloud Run service is configured with:
+- Database connection via private IP
+- SSL-required connection
+- Spring Boot production profile
+- JPA/Hibernate auto-update mode
+- Proper resource limits (1 CPU, 1GB RAM)
 
-```bash
-# Update the web image version
-pulumi config set webImageName jbadhree/badhtaxrefundweb:v1.1.0
+### Web Service Configuration
 
-# Deploy the changes
-pulumi up
-```
+The `badhtaxrefundweb` Cloud Run service is configured with:
+- Node.js production environment
+- Resource limits (1 CPU, 512MB RAM)
+- Auto-scaling (0-10 instances)
 
-### Updating the Web Service Name
+## Security
 
-To change the web service name:
+- Database requires SSL connections
+- Cloud Run services are publicly accessible (configure IAM as needed)
+- Database password is stored as a Pulumi secret
+- Private IP networking for database connections
 
-```bash
-# Update the web service name
-pulumi config set webServiceName my-new-web-service
+## Monitoring and Logging
 
-# Deploy the changes
-pulumi up
-```
-
-## Monitoring
-
-After deployment, you can monitor your service:
-
-- **Cloud Run Console**: View service metrics and logs
-- **Docker Hub**: View your published image at https://hub.docker.com/r/jbadhree/badhtaxrefundweb
+- Database logging enabled for statements > 1 second
+- Cloud Run services include structured logging
+- Backup configuration enabled for database
 
 ## Cleanup
 
 To destroy all resources:
-
 ```bash
 pulumi destroy
 ```
 
-## Customization
+**Warning**: This will permanently delete all data in the database and remove all infrastructure.
 
-### Environment-Specific Configuration
+## Troubleshooting
 
-Create different stacks for different environments:
+1. **Database Connection Issues**: Ensure the Cloud SQL instance is running and the private IP is accessible
+2. **Service Startup Issues**: Check Cloud Run logs for application-specific errors
+3. **Permission Issues**: Verify IAM roles and service account permissions
 
-```bash
-# Development
-pulumi stack init dev
-pulumi config set region us-central1
+## Cost Optimization
 
-# Production
-pulumi stack init prod
-pulumi config set region us-east1
-```
-
-### Resource Limits
-
-Modify resource limits in `__main__.py`:
-
-```python
-resources=gcp.cloudrun.ServiceTemplateSpecContainerResourcesArgs(
-    limits={
-        "cpu": "2000m",      # Increase CPU limit
-        "memory": "1Gi"      # Increase memory limit
-    }
-)
-```
-
-### Custom Domain
-
-To add a custom domain, add the following to your Pulumi code:
-
-```python
-# Add domain mapping
-domain_mapping = gcp.cloudrun.DomainMapping(
-    "custom-domain",
-    name="your-domain.com",
-    location=region,
-    metadata=gcp.cloudrun.DomainMappingMetadataArgs(
-        namespace=project_id
-    ),
-    spec=gcp.cloudrun.DomainMappingSpecArgs(
-        route_name=cloud_run_service.name
-    )
-)
-```
-
-## Configuration Management
-
-### Required Configuration
-
-- `webServiceName`: Name of the web Cloud Run service
-- `webImageName`: Docker image name and tag for web service (e.g., `jbadhree/badhtaxrefundweb:v1.0.0`)
-
-### Optional Configuration
-
-- `region`: Google Cloud region (defaults to `us-central1`)
-
-### Project ID
-
-The project ID is automatically obtained from your gcloud configuration:
-```bash
-gcloud config set project YOUR_PROJECT_ID
-```
-
-## Useful Commands
-
-```bash
-# View current configuration
-pulumi config
-
-# Set configuration values
-pulumi config set webServiceName my-web-service
-pulumi config set webImageName my-web-image:v2.0.0
-pulumi config set region us-east1
-
-# View stack outputs
-pulumi stack output
-
-# View resource details
-pulumi state show <resource-name>
-
-# Refresh state
-pulumi refresh
-
-# Preview changes
-pulumi preview
-
-# Deploy changes
-pulumi up
-
-# Destroy resources
-pulumi destroy
-```
-
-## Security Considerations
-
-- The service is configured for public access
-- Consider adding authentication for production use
-- Monitor resource usage and costs
-- Regularly update base images for security patches
+- Database uses `db-f1-micro` tier (suitable for development)
+- Cloud Run services scale to zero when not in use
+- Consider upgrading database tier for production workloads

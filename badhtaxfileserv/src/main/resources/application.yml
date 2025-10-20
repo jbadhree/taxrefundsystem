@@ -1,0 +1,54 @@
+server:
+  port: 4000
+
+spring:
+  application:
+    name: badhtaxfileserv
+  
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/taxrefund?currentSchema=taxfileservdb}
+    username: ${POSTGRES_USER:taxrefund_user}
+    password: ${POSTGRES_PASSWORD:taxrefund_password}
+    driver-class-name: org.postgresql.Driver
+  
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: ${FLYWAY_SCHEMAS:taxfileservdb}
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    show-sql: false
+  
+  flyway:
+    enabled: true
+    schemas: taxfileservdb
+    baseline-on-migrate: true
+    validate-on-migrate: true
+    clean-disabled: true
+    locations: classpath:db/migration
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.badhtaxfileserv: DEBUG
+    org.springframework.web: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
