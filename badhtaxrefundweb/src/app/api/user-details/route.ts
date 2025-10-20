@@ -4,16 +4,16 @@ import { getUserDetails } from '@/data/mockData';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const username = searchParams.get('username');
+    const userId = searchParams.get('userId');
 
-    if (!username) {
+    if (!userId) {
       return NextResponse.json(
-        { error: 'Username is required' },
+        { error: 'userId is required' },
         { status: 400 }
       );
     }
 
-    const userDetails = getUserDetails(username);
+    const userDetails = getUserDetails(userId);
 
     if (!userDetails) {
       return NextResponse.json(

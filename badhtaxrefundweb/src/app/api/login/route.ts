@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      userId: user.id,
       username: user.username,
       message: 'Login successful'
     });

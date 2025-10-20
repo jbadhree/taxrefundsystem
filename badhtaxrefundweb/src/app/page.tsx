@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 interface UserDetails {
+  userId: string;
   username: string;
   taxYears: number[];
 }
@@ -16,18 +17,18 @@ export default function HomePage() {
   const router = useRouter();
 
   useEffect(() => {
-    const username = localStorage.getItem('username');
-    if (!username) {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
       router.push('/login');
       return;
     }
 
-    fetchUserDetails(username);
+    fetchUserDetails(userId);
   }, [router]);
 
-  const fetchUserDetails = async (username: string) => {
+  const fetchUserDetails = async (userId: string) => {
     try {
-      const response = await fetch(`/api/user-details?username=${encodeURIComponent(username)}`);
+      const response = await fetch(`/api/user-details?userId=${encodeURIComponent(userId)}`);
       const data = await response.json();
 
       if (response.ok) {

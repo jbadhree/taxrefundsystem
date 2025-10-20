@@ -27,7 +27,8 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (response.ok) {
-        // Store username in localStorage for now (in a real app, use proper auth)
+        // Store identifiers in localStorage for demo purposes
+        localStorage.setItem('userId', data.userId);
         localStorage.setItem('username', data.username);
         router.push('/');
       } else {
@@ -101,10 +102,36 @@ export default function LoginPage() {
             </button>
           </div>
 
-          <div className="text-sm text-gray-600 text-center">
-            <p>Demo credentials:</p>
-            <p>Email: Bruce@taxrefund.com</p>
-            <p>Password: Chang3m3!</p>
+          <div className="text-sm text-gray-600">
+            <p className="text-center mb-2">Demo credentials:</p>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                    <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                    <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  <tr>
+                    <td className="px-4 py-2 whitespace-nowrap">Bruce Scott</td>
+                    <td className="px-4 py-2 whitespace-nowrap">bruce@badhtaxrefund.com</td>
+                    <td className="px-4 py-2 whitespace-nowrap">yet to file tax</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-2 whitespace-nowrap">Adam Smith</td>
+                    <td className="px-4 py-2 whitespace-nowrap">adam@badhtaxrefund.com</td>
+                    <td className="px-4 py-2 whitespace-nowrap">awaiting refund</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-2 whitespace-nowrap">Karl Popper</td>
+                    <td className="px-4 py-2 whitespace-nowrap">karl@badhtaxrefund.com</td>
+                    <td className="px-4 py-2 whitespace-nowrap">refund errors</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </form>
       </div>
