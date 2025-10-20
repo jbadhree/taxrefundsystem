@@ -54,5 +54,6 @@ EXPOSE 8080
 # set hostname to localhost
 ENV HOSTNAME="0.0.0.0"
 
-ENV PORT=8080
+# Use PORT environment variable from Cloud Run
+ENV PORT=${PORT:-8080}
 CMD ["node", "server.js"]

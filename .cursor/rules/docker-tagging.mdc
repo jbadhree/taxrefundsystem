@@ -1,0 +1,18 @@
+---
+description: Always increment patch version for releases
+globs: ["Dockerfile", "*.sh", "CHANGELOG.md"]
+alwaysApply: true
+---
+
+# Patch Versioning for Docker Images
+
+- Use semantic versioning in the form of `v<major>.<minor>.<patch>`.
+- When preparing a release, and unless a major or minor change is explicitly specified, increment the patch number.
+- For example, if the current version is `v1.0.9`, the next version should be `v1.0.10` following any code update or release workflow.
+- Avoid `latest` tags, postfixes, or alternative bumping strategies unless directed.
+
+
+# Building Docker Images 
+
+- When building docker images that will be used in cloud run use `docker buildx build --platform linux/amd64` 
+- If build_and_push.sh is available try to use it

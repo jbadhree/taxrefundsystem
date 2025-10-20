@@ -2,6 +2,7 @@ package com.badhtaxfileserv.controller;
 
 import com.badhtaxfileserv.dto.CreateTaxFileRequest;
 import com.badhtaxfileserv.dto.TaxFileResponse;
+import com.badhtaxfileserv.dto.TaxUserResponse;
 import com.badhtaxfileserv.service.TaxFileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -54,6 +55,24 @@ public class TaxFileController {
         log.info("Received request to get tax file for user: {} and year: {}", userId, year);
         
         TaxFileResponse response = taxFileService.getTaxFile(userId, year);
+        
+        return ResponseEntity.ok(response);
+    }
+    
+    @GetMapping("/taxUser")
+    @Operation(summary = "Get all tax files for a user", description = "Retrieves all tax files for the specified user ID")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Tax files retrieved successfully"),
+        @ApiResponse(responseCode = "400", description = "Invalid user ID"),
+        @ApiResponse(responseCode = "404", description = "No tax files found for user")
+    })
+    public ResponseEntity<TaxUserResponse> getTaxFilesByUserId(
+            @Parameter(description = "User ID", required = true)
+            @RequestParam String userId) {
+        
+        log.info("Received request to get all tax files for user: {}", userId);
+        
+        TaxUserResponse response = taxFileService.getTaxFilesByUserId(userId);
         
         return ResponseEntity.ok(response);
     }

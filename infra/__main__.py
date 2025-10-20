@@ -126,6 +126,10 @@ web_cloud_run_service = gcp.cloudrun.Service(
                         gcp.cloudrun.ServiceTemplateSpecContainerEnvArgs(
                             name="NODE_ENV",
                             value="production"
+                        ),
+                        gcp.cloudrun.ServiceTemplateSpecContainerEnvArgs(
+                            name="BADHTAXFILESERV_BASEURL",
+                            value="https://badhtaxfileserv-797008539263.us-central1.run.app"
                         )
                     ],
                     resources=gcp.cloudrun.ServiceTemplateSpecContainerResourcesArgs(
@@ -151,7 +155,7 @@ web_cloud_run_service = gcp.cloudrun.Service(
             }
         )
     ),
-    opts=pulumi.ResourceOptions(depends_on=[cloud_run_api])
+    opts=pulumi.ResourceOptions(depends_on=[cloud_run_api, file_cloud_run_service])
 )
 
 # Allow unauthenticated access to the web service

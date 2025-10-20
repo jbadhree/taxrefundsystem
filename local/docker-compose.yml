@@ -42,6 +42,22 @@ services:
       postgres:
         condition: service_healthy
 
+  # Web Service
+  badhtaxrefundweb:
+    image: jbadhree/badhtaxrefundweb:v1.0.10
+    container_name: taxrefund_badhtaxrefundweb
+    restart: unless-stopped
+    environment:
+      BADHTAXFILESERV_BASEURL: http://badhtaxfileserv:4000
+      NODE_ENV: production
+    ports:
+      - "3000:8080"
+    networks:
+      - taxrefund_network
+    depends_on:
+      badhtaxfileserv:
+        condition: service_started
+
   # Optional: pgAdmin for database management
   pgadmin:
     image: dpage/pgadmin4:latest

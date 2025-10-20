@@ -31,14 +31,39 @@ print_info() {
 SERVICE_NAME="badhtaxrefundweb"
 REGION="us-central1"
 IMAGE_NAME="jbadhree/badhtaxrefundweb"
-TAG="${1:-latest}"
-FULL_IMAGE_NAME="${IMAGE_NAME}:${TAG}"
 PORT=8080
 MEMORY="512Mi"
 CPU="1000m"
 MIN_INSTANCES=0
 MAX_INSTANCES=10
 TIMEOUT=300
+
+# Function to validate version format
+validate_version() {
+    local version="$1"
+    
+    # Check if version is provided
+    if [ -z "$version" ]; then
+        print_error "Version argument is required"
+        echo "Usage: $0 <version>"
+        echo "Example: $0 v1.0.10"
+        exit 1
+    fi
+    
+    # Validate version format (supports v1.0.10 or 1.0.10)
+    if [[ ! $version =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        print_error "Invalid version format: $version"
+        echo "Version must be in format: v1.0.10 or 1.0.10"
+        exit 1
+    fi
+    
+    # Ensure version has 'v' prefix
+    if [[ ! $version =~ ^v ]]; then
+        version="v$version"
+    fi
+    
+    echo "$version"
+}
 
 # Function to check if gcloud is installed and authenticated
 check_gcloud() {
@@ -66,6 +91,23 @@ get_project() {
         exit 1
     fi
     print_info "Using project: $PROJECT_ID"
+}
+
+# Function to check if image exists in registry
+check_image_exists() {
+    local image_name="$1"
+    print_status "Checking if image $image_name exists in registry..."
+    
+    # Try to pull the image manifest to check if it exists
+    if docker manifest inspect "$image_name" &> /dev/null; then
+        print_status "✓ Image $image_name found in registry"
+        return 0
+    else
+        print_error "✗ Image $image_name not found in registry"
+        print_error "Please ensure the image has been built and pushed first:"
+        echo "  ./build-and-push.sh $TAG"
+        exit 1
+    fi
 }
 
 # Function to check if service exists
@@ -119,8 +161,22 @@ show_service_status() {
     gcloud run services describe $SERVICE_NAME --region=$REGION --format="table(metadata.name,status.url,spec.template.spec.containers[0].image,status.conditions[0].status)"
 }
 
+# Function to get current deployed version
+get_current_version() {
+    local current_image=$(gcloud run services describe $SERVICE_NAME --region=$REGION --format="value(spec.template.spec.containers[0].image)" 2>/dev/null)
+    if [ ! -z "$current_image" ]; then
+        echo "$current_image" | sed 's/.*://'
+    else
+        echo "unknown"
+    fi
+}
+
 # Main deployment logic
 main() {
+    # Validate version argument
+    TAG=$(validate_version "$1")
+    FULL_IMAGE_NAME="${IMAGE_NAME}:${TAG}"
+    
     print_info "Starting deployment of $SERVICE_NAME"
     print_info "Image: $FULL_IMAGE_NAME"
     print_info "Region: $REGION"
@@ -129,18 +185,21 @@ main() {
     # Pre-flight checks
     check_gcloud
     get_project
+    check_image_exists "$FULL_IMAGE_NAME"
     
-    # Check if image exists locally (optional check)
-    if ! docker image inspect $FULL_IMAGE_NAME &> /dev/null; then
-        print_warning "Image $FULL_IMAGE_NAME not found locally. Make sure it's available in the registry."
-    fi
-    
-    # Deploy or update service
+    # Show version comparison if service exists
     if check_service_exists; then
-        print_info "Service $SERVICE_NAME already exists. Updating..."
+        CURRENT_VERSION=$(get_current_version)
+        print_info "Current deployed version: $CURRENT_VERSION"
+        print_info "Deploying version: $TAG"
+        if [ "$CURRENT_VERSION" != "$TAG" ]; then
+            print_info "Service $SERVICE_NAME will be updated from $CURRENT_VERSION to $TAG"
+        else
+            print_warning "Service $SERVICE_NAME is already running version $TAG"
+        fi
         update_service
     else
-        print_info "Service $SERVICE_NAME does not exist. Creating new service..."
+        print_info "Service $SERVICE_NAME does not exist. Creating new service with version $TAG..."
         deploy_new_service
     fi
     
@@ -162,17 +221,23 @@ main() {
 
 # Help function
 show_help() {
-    echo "Usage: $0 [TAG]"
+    echo "Usage: $0 <VERSION>"
     echo
     echo "Deploy badhtaxrefundweb to Google Cloud Run"
     echo
     echo "Arguments:"
-    echo "  TAG        Docker image tag to deploy (default: latest)"
+    echo "  VERSION    Docker image version to deploy (required)"
+    echo "             Format: v1.0.10 or 1.0.10"
     echo
     echo "Examples:"
-    echo "  $0                    # Deploy latest tag"
-    echo "  $0 v1.0.9            # Deploy specific version"
-    echo "  $0 v1.0.9 --help     # Show this help"
+    echo "  $0 v1.0.10           # Deploy specific version"
+    echo "  $0 1.0.10            # Deploy specific version (v prefix added automatically)"
+    echo "  $0 --help            # Show this help"
+    echo
+    echo "Prerequisites:"
+    echo "  - Image must be built and pushed first: ./build-and-push.sh v1.0.10"
+    echo "  - gcloud CLI must be installed and authenticated"
+    echo "  - Google Cloud project must be set"
     echo
     echo "Environment Variables:"
     echo "  GOOGLE_CLOUD_PROJECT  Override the default project"
@@ -185,5 +250,5 @@ if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     exit 0
 fi
 
-# Run main function
-main
+# Run main function with arguments
+main "$@"
