@@ -1,0 +1,17 @@
+Feature Name,Data Type,Rationale,Source
+filing_date,datetime,Early filers get faster refunds,Real Time
+filing_method,categorical,E-file is faster than paper,
+refund_amount,numeric,Large refunds may attract extra scrutiny,
+direct_deposit,boolean,Faster than paper check,
+num_forms,numeric,More forms = higher complexity,
+status_update_history,sequence,IRS status lag/time series,
+years_as_filer,numeric,First-timers may have longer verification,
+recent_address_change,boolean,Flag for security review,
+irs_acceptance_date,datetime,Signals processing window start,
+third_party_processing,boolean,Third-party bank delays,
+flagged_for_review,boolean,Major source of delay,
+state_residence,categorical,State-to-state IRS centers vary,
+seasonality,categorical,March-April sees longer queues,
+prior_audit_or_rejection,boolean,History of friction,
+correction_submitted,boolean,Corrections can cause new delays,
+bank_holiday,boolean/datetime,Interrupts transfer timing,
