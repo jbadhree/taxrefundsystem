@@ -28,6 +28,12 @@ spring:
     validate-on-migrate: true
     clean-disabled: true
     locations: classpath:db/migration
+  
+  cloud:
+    gcp:
+      project-id: ${GOOGLE_CLOUD_PROJECT:}
+      credentials:
+        location: ${GOOGLE_APPLICATION_CREDENTIALS:}
 
 springdoc:
   api-docs:
@@ -51,4 +57,9 @@ logging:
     org.springframework.web: DEBUG
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+pubsub:
+  enabled: ${PUBSUB_ENABLED:false}
+  refund-update-topic: ${PUBSUB_REFUND_UPDATE_TOPIC:refund-update-from-irs}
+  send-refund-topic: ${PUBSUB_SEND_REFUND_TOPIC:send-refund-to-irs}
 

@@ -1,0 +1,32 @@
+{
+  "error_messages": [
+    "Invalid file ID format",
+    "File not found in IRS system",
+    "Processing timeout exceeded",
+    "Invalid taxpayer information",
+    "Duplicate submission detected",
+    "IRS system temporarily unavailable",
+    "Invalid refund amount",
+    "Missing required documentation",
+    "Tax year not eligible for processing",
+    "Account verification failed",
+    "Invalid SSN format",
+    "Bank account information mismatch",
+    "Refund amount exceeds maximum limit",
+    "Tax return not filed for this year",
+    "Identity verification failed",
+    "Direct deposit information invalid",
+    "Refund already processed",
+    "Tax return under review",
+    "Incomplete tax return submission",
+    "IRS database connection error",
+    "Refund calculation error",
+    "Taxpayer address verification failed",
+    "Bank routing number invalid",
+    "Refund status check limit exceeded",
+    "System maintenance in progress"
+  ]
+}
+
+
+

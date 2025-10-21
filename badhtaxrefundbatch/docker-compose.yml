@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: taxrefund
+      POSTGRES_USER: taxrefund_user
+      POSTGRES_PASSWORD: taxrefund_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taxrefund_user -d taxrefund"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  badhtaxrefundbatch:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://taxrefund_user:taxrefund_password@postgres:5432/taxrefund?schema=taxrefundbatchdb
+      MAX_CONCURRENT_WORKERS: 5
+      BATCH_SIZE: 50
+      PROCESSING_INTERVAL: 30
+      LOG_LEVEL: info
+      SEED_DATA: true
+      CSV_FILE_PATH: ./data/refunds_seed.csv
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+
+volumes:
+  postgres_data:

@@ -44,6 +44,18 @@ sql_component_api = gcp.projects.Service(
     disable_on_destroy=False
 )
 
+pubsub_api = gcp.projects.Service(
+    "pubsub-api",
+    service="pubsub.googleapis.com",
+    disable_on_destroy=False
+)
+
+cloudscheduler_api = gcp.projects.Service(
+    "cloudscheduler-api",
+    service="cloudscheduler.googleapis.com",
+    disable_on_destroy=False
+)
+
 # Create Cloud SQL instance
 db_instance = gcp.sql.DatabaseInstance(
     "taxrefund-db-instance",
@@ -106,6 +118,19 @@ db_user_instance = gcp.sql.User(
     opts=pulumi.ResourceOptions(depends_on=[database])
 )
 
+# Create Pub/Sub topics
+refund_update_topic = gcp.pubsub.Topic(
+    "refund-update-from-irs-topic",
+    name="refund-update-from-irs",
+    opts=pulumi.ResourceOptions(depends_on=[pubsub_api])
+)
+
+send_refund_topic = gcp.pubsub.Topic(
+    "send-refund-to-irs-topic",
+    name="send-refund-to-irs",
+    opts=pulumi.ResourceOptions(depends_on=[pubsub_api])
+)
+
 # Create Cloud Run service for web component
 web_cloud_run_service = gcp.cloudrun.Service(
     "badhtaxrefundweb-service",
@@ -155,7 +180,7 @@ web_cloud_run_service = gcp.cloudrun.Service(
             }
         )
     ),
-    opts=pulumi.ResourceOptions(depends_on=[cloud_run_api, file_cloud_run_service])
+    opts=pulumi.ResourceOptions(depends_on=[cloud_run_api])
 )
 
 # Allow unauthenticated access to the web service
@@ -230,6 +255,22 @@ file_cloud_run_service = gcp.cloudrun.Service(
                         gcp.cloudrun.ServiceTemplateSpecContainerEnvArgs(
                             name="SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE",
                             value="5"
+                        ),
+                        gcp.cloudrun.ServiceTemplateSpecContainerEnvArgs(
+                            name="GOOGLE_CLOUD_PROJECT",
+                            value=project_id
+                        ),
+                        gcp.cloudrun.ServiceTemplateSpecContainerEnvArgs(
+                            name="PUBSUB_REFUND_UPDATE_TOPIC",
+                            value=refund_update_topic.name
+                        ),
+                        gcp.cloudrun.ServiceTemplateSpecContainerEnvArgs(
+                            name="PUBSUB_SEND_REFUND_TOPIC",
+                            value=send_refund_topic.name
+                        ),
+                        gcp.cloudrun.ServiceTemplateSpecContainerEnvArgs(
+                            name="PUBSUB_ENABLED",
+                            value="false"
                         )
                     ],
                     resources=gcp.cloudrun.ServiceTemplateSpecContainerResourcesArgs(
@@ -269,6 +310,126 @@ file_noauth_iam_member = gcp.cloudrun.IamMember(
     member="allUsers"
 )
 
+# Create Cloud Run batch job
+batch_job = gcp.cloudrunv2.Job(
+    "badhtaxrefundbatch-job",
+    name="badhtaxrefundbatch",
+    location=region,
+    template=gcp.cloudrunv2.JobTemplateArgs(
+        template=gcp.cloudrunv2.JobTemplateTemplateArgs(
+            containers=[
+                gcp.cloudrunv2.JobTemplateTemplateContainerArgs(
+                    image="jbadhree/badhtaxrefundbatch:v1.0.2",
+                    envs=[
+                        gcp.cloudrunv2.JobTemplateTemplateContainerEnvArgs(
+                            name="DATABASE_URL",
+                            value=pulumi.Output.concat(
+                                "postgresql://",
+                                db_user,
+                                ":",
+                                db_password,
+                                "@",
+                                db_instance.public_ip_address,
+                                ":5432/",
+                                db_name,
+                                "?search_path=taxrefundbatchdb"
+                            )
+                        ),
+                        gcp.cloudrunv2.JobTemplateTemplateContainerEnvArgs(
+                            name="MAX_CONCURRENT_WORKERS",
+                            value="10"
+                        ),
+                        gcp.cloudrunv2.JobTemplateTemplateContainerEnvArgs(
+                            name="BATCH_SIZE",
+                            value="100"
+                        ),
+                        gcp.cloudrunv2.JobTemplateTemplateContainerEnvArgs(
+                            name="PROCESSING_INTERVAL",
+                            value="0"  # Run once for batch job
+                        ),
+                        gcp.cloudrunv2.JobTemplateTemplateContainerEnvArgs(
+                            name="LOG_LEVEL",
+                            value="info"
+                        ),
+                        gcp.cloudrunv2.JobTemplateTemplateContainerEnvArgs(
+                            name="SEED_DATA",
+                            value="true"
+                        ),
+                        gcp.cloudrunv2.JobTemplateTemplateContainerEnvArgs(
+                            name="CSV_FILE_PATH",
+                            value="./data/refunds_seed.csv"
+                        )
+                    ],
+                    resources=gcp.cloudrunv2.JobTemplateTemplateContainerResourcesArgs(
+                        limits={
+                            "cpu": "1000m",
+                            "memory": "1Gi"
+                        }
+                    )
+                )
+            ],
+            timeout="3600s"  # 1 hour timeout
+        )
+    ),
+    opts=pulumi.ResourceOptions(depends_on=[cloud_run_api, db_user_instance])
+)
+
+# Create Cloud Scheduler job to run batch job every 4 hours
+scheduler_job = gcp.cloudscheduler.Job(
+    "badhtaxrefundbatch-scheduler",
+    name="badhtaxrefundbatch-scheduler",
+    description="Run refund batch processing every 4 hours",
+    schedule="0 */4 * * *",  # Every 4 hours
+    time_zone="UTC",
+    region=region,
+    http_target=gcp.cloudscheduler.JobHttpTargetArgs(
+        uri=pulumi.Output.concat(
+            "https://",
+            region,
+            "-run.googleapis.com/apis/run.googleapis.com/v2/namespaces/",
+            project_id,
+            "/jobs/",
+            batch_job.name,
+            ":run"
+        ),
+        http_method="POST",
+        headers={
+            "Content-Type": "application/json"
+        },
+        oidc_token=gcp.cloudscheduler.JobHttpTargetOidcTokenArgs(
+            service_account_email=pulumi.Output.concat(
+                "badhtaxrefundbatch@",
+                project_id,
+                ".iam.gserviceaccount.com"
+            )
+        )
+    ),
+    opts=pulumi.ResourceOptions(depends_on=[cloudscheduler_api, batch_job])
+)
+
+# Create service account for batch job
+batch_service_account = gcp.serviceaccount.Account(
+    "badhtaxrefundbatch-service-account",
+    account_id="badhtaxrefundbatch",
+    display_name="BadhTaxRefundBatch Service Account",
+    description="Service account for refund batch processing"
+)
+
+# Grant necessary permissions to service account
+batch_sql_client_role = gcp.projects.IAMMember(
+    "batch-sql-client-role",
+    project=project_id,
+    role="roles/cloudsql.client",
+    member=pulumi.Output.concat("serviceAccount:", batch_service_account.email)
+)
+
+batch_scheduler_invoker_role = gcp.projects.IAMMember(
+    "batch-scheduler-invoker-role",
+    project=project_id,
+    role="roles/run.invoker",
+    member=pulumi.Output.concat("serviceAccount:", batch_service_account.email)
+)
+
 # Export important values
 export("project_id", project_id)
 export("region", region)
@@ -291,3 +452,13 @@ export("file_service_name", file_service_name)
 export("file_service_url", file_cloud_run_service.statuses[0].url)
 export("file_image_name", file_image_name)
 export("file_docker_hub_url", "https://hub.docker.com/r/jbadhree/badhtaxfileserv")
+
+# Pub/Sub exports
+export("refund_update_topic_name", refund_update_topic.name)
+export("send_refund_topic_name", send_refund_topic.name)
+
+# Batch job exports
+export("batch_job_name", batch_job.name)
+export("batch_job_image", "jbadhree/badhtaxrefundbatch:v1.0.2")
+export("scheduler_job_name", scheduler_job.name)
+export("batch_service_account_email", batch_service_account.email)
