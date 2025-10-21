@@ -155,19 +155,20 @@ deploy_new_service() {
         --max-instances=$MAX_INSTANCES \
         --timeout=$TIMEOUT \
         --set-env-vars="SPRING_PROFILES_ACTIVE=production" \
-        --set-env-vars="SPRING_DATASOURCE_URL=$DB_URL" \
-        --set-env-vars="SPRING_DATASOURCE_USERNAME=$DB_USER" \
-        --set-env-vars="SPRING_DATASOURCE_PASSWORD=$DB_PASSWORD" \
-        --set-env-vars="SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect" \
-        --set-env-vars="SPRING_JPA_HIBERNATE_DDL_AUTO=update" \
-        --set-env-vars="SPRING_JPA_SHOW_SQL=false" \
+        --set-env-vars="DATABASE_URL=$DB_URL" \
+        --set-env-vars="POSTGRES_USER=$DB_USER" \
+        --set-env-vars="POSTGRES_PASSWORD=$DB_PASSWORD" \
+        --set-env-vars="FLYWAY_SCHEMAS=taxfileservdb" \
+        --set-env-vars="REDIS_HOST=localhost" \
+        --set-env-vars="REDIS_PORT=6379" \
+        --set-env-vars="REDIS_PASSWORD=" \
+        --set-env-vars="REDIS_ENABLED=false" \
+        --set-env-vars="CACHE_TYPE=simple" \
         --set-env-vars="SERVER_PORT=$PORT" \
-        --set-env-vars="SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT=30000" \
-        --set-env-vars="SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=5" \
         --set-env-vars="GOOGLE_CLOUD_PROJECT=$PROJECT_ID" \
         --set-env-vars="PUBSUB_REFUND_UPDATE_TOPIC=refund-update-from-irs" \
         --set-env-vars="PUBSUB_SEND_REFUND_TOPIC=send-refund-to-irs" \
-        --set-env-vars="PUBSUB_ENABLED=true" \
+        --set-env-vars="PUBSUB_ENABLED=false" \
         --execution-environment=gen2 \
         --cpu-boost \
         --quiet
@@ -181,10 +182,19 @@ update_service() {
     gcloud run services update $SERVICE_NAME \
         --image=$FULL_IMAGE_NAME \
         --region=$REGION \
+        --set-env-vars="DATABASE_URL=$DB_URL" \
+        --set-env-vars="POSTGRES_USER=$DB_USER" \
+        --set-env-vars="POSTGRES_PASSWORD=$DB_PASSWORD" \
+        --set-env-vars="FLYWAY_SCHEMAS=taxfileservdb" \
+        --set-env-vars="REDIS_HOST=localhost" \
+        --set-env-vars="REDIS_PORT=6379" \
+        --set-env-vars="REDIS_PASSWORD=" \
+        --set-env-vars="REDIS_ENABLED=false" \
+        --set-env-vars="CACHE_TYPE=simple" \
         --set-env-vars="GOOGLE_CLOUD_PROJECT=$PROJECT_ID" \
         --set-env-vars="PUBSUB_REFUND_UPDATE_TOPIC=refund-update-from-irs" \
         --set-env-vars="PUBSUB_SEND_REFUND_TOPIC=send-refund-to-irs" \
-        --set-env-vars="PUBSUB_ENABLED=true" \
+        --set-env-vars="PUBSUB_ENABLED=false" \
         --quiet
 }
 

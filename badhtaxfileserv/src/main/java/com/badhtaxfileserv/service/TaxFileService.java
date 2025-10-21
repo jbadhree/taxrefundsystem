@@ -5,8 +5,10 @@ import com.badhtaxfileserv.dto.TaxFileResponse;
 import com.badhtaxfileserv.dto.TaxUserResponse;
 import com.badhtaxfileserv.entity.Refund;
 import com.badhtaxfileserv.entity.TaxFile;
+import com.badhtaxfileserv.entity.User;
 import com.badhtaxfileserv.repository.RefundRepository;
 import com.badhtaxfileserv.repository.TaxFileRepository;
+import com.badhtaxfileserv.repository.UserRepository;
 import com.badhtaxfileserv.util.ETAPredictor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +27,7 @@ public class TaxFileService {
     
     private final TaxFileRepository taxFileRepository;
     private final RefundRepository refundRepository;
+    private final UserRepository userRepository;
     private final ETAPredictor etaPredictor;
     private final PubSubServiceInterface pubSubService;
     private final TaxFileCacheServiceInterface cacheService;
@@ -128,6 +131,10 @@ public class TaxFileService {
     public TaxUserResponse getTaxFilesByUserId(String userId) {
         log.info("Retrieving all tax files for user: {}", userId);
         
+        // Fetch user information
+        User user = userRepository.findByUserId(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
+        
         List<TaxFile> taxFiles = taxFileRepository.findByUserIdWithRefund(userId);
         
         List<TaxUserResponse.TaxFileSummary> taxFileSummaries = taxFiles.stream()
@@ -136,6 +143,8 @@ public class TaxFileService {
         
         return TaxUserResponse.builder()
                 .userId(userId)
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
                 .taxFiles(taxFileSummaries)
                 .totalFiles(taxFiles.size())
                 .build();

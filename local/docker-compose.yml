@@ -25,21 +25,40 @@ services:
       timeout: 5s
       retries: 5
 
+  # Redis Service
+  redis:
+    image: redis:7-alpine
+    container_name: taxrefund_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - taxrefund_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Tax File Service
   badhtaxfileserv:
-    image: badhtaxfileserv:v1.0.4
+    image: jbadhree/badhtaxfileserv:v1.0.30
     container_name: taxrefund_badhtaxfileserv
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-taxrefund_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-taxrefund_password}
       DATABASE_URL: jdbc:postgresql://postgres:5432/taxrefund?currentSchema=taxfileservdb
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     ports:
       - "4000:4000"
     networks:
       - taxrefund_network
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   # Web Service

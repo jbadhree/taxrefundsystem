@@ -16,6 +16,8 @@ import java.util.List;
 public class TaxUserResponse {
     
     private String userId;
+    private String firstName;
+    private String lastName;
     private List<TaxFileSummary> taxFiles;
     private int totalFiles;
     

@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { TaxFileSummary } from '@/types/api';
 
 interface UserDetails {
@@ -149,7 +148,7 @@ export default function HomePage() {
       } else {
         setError(data.error || 'Failed to create tax file');
       }
-    } catch (err) {
+    } catch {
       setError('Network error. Please try again.');
     } finally {
       setFormLoading(false);

@@ -31,7 +31,7 @@ FROM eclipse-temurin:17-jre
 WORKDIR /app
 
 # Install curl for health check (before switching to non-root user)
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y curl unzip && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for security
 RUN groupadd -g 1001 appgroup && \

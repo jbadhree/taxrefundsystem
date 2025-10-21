@@ -18,6 +18,10 @@ web_service_name = config.require("webServiceName")
 web_image_name = config.require("webImageName")
 file_service_name = config.require("fileServiceName")
 file_image_name = config.require("fileImageName")
+predict_service_name = config.require("predictServiceName")
+predict_image_name = config.require("predictImageName")
+batch_job_name = config.require("batchJobName")
+batch_image_name = config.require("batchImageName")
 
 # Database configuration
 db_instance_name = config.get("dbInstanceName") or "taxrefund-db"
@@ -53,6 +57,12 @@ pubsub_api = gcp.projects.Service(
 cloudscheduler_api = gcp.projects.Service(
     "cloudscheduler-api",
     service="cloudscheduler.googleapis.com",
+    disable_on_destroy=False
+)
+
+cloudrunjobs_api = gcp.projects.Service(
+    "cloudrunjobs-api",
+    service="run.googleapis.com",
     disable_on_destroy=False
 )
 
@@ -311,7 +321,7 @@ file_cloud_run_service = gcp.cloudrun.Service(
             service_account_name=file_service_account.email,
             containers=[
                 gcp.cloudrun.ServiceTemplateSpecContainerArgs(
-                    image=file_image_name,
+                    image="jbadhree/badhtaxfileserv:v1.0.31",
                     ports=[
                         gcp.cloudrun.ServiceTemplateSpecContainerPortArgs(
                             container_port=4000,
@@ -404,6 +414,10 @@ file_cloud_run_service = gcp.cloudrun.Service(
                         gcp.cloudrun.ServiceTemplateSpecContainerEnvArgs(
                             name="REDIS_PASSWORD",
                             value=redis_instance.auth_string
+                        ),
+                        gcp.cloudrun.ServiceTemplateSpecContainerEnvArgs(
+                            name="SERVER_URL",
+                            value=pulumi.Output.concat("https://", file_service_name, "-797008539263.us-central1.run.app")
                         )
                     ],
                     resources=gcp.cloudrun.ServiceTemplateSpecContainerResourcesArgs(
@@ -445,6 +459,64 @@ file_noauth_iam_member = gcp.cloudrun.IamMember(
     member="allUsers"
 )
 
+# Create Cloud Run service for prediction service
+predict_cloud_run_service = gcp.cloudrun.Service(
+    "badhrefundpredictserv-service",
+    name=predict_service_name,
+    location=region,
+    template=gcp.cloudrun.ServiceTemplateArgs(
+        spec=gcp.cloudrun.ServiceTemplateSpecArgs(
+            containers=[
+                gcp.cloudrun.ServiceTemplateSpecContainerArgs(
+                    image=predict_image_name,
+                    ports=[
+                        gcp.cloudrun.ServiceTemplateSpecContainerPortArgs(
+                            container_port=8090,
+                            protocol="TCP"
+                        )
+                    ],
+                    envs=[
+                        gcp.cloudrun.ServiceTemplateSpecContainerEnvArgs(
+                            name="PYTHONUNBUFFERED",
+                            value="1"
+                        )
+                    ],
+                    resources=gcp.cloudrun.ServiceTemplateSpecContainerResourcesArgs(
+                        limits={
+                            "cpu": "1000m",
+                            "memory": "1Gi"  # ML models need more memory
+                        },
+                        requests={
+                            "cpu": "500m",
+                            "memory": "512Mi"
+                        }
+                    )
+                )
+            ],
+            container_concurrency=10,  # Lower concurrency for ML workloads
+            timeout_seconds=300
+        ),
+        metadata=gcp.cloudrun.ServiceTemplateMetadataArgs(
+            annotations={
+                "autoscaling.knative.dev/maxScale": "5",  # Lower max scale for ML
+                "autoscaling.knative.dev/minScale": "0",
+                "run.googleapis.com/execution-environment": "gen2"
+            }
+        )
+    ),
+    opts=pulumi.ResourceOptions(depends_on=[cloud_run_api])
+)
+
+# Allow unauthenticated access to the prediction service
+predict_noauth_iam_member = gcp.cloudrun.IamMember(
+    "predict-noauth-iam-member",
+    location=predict_cloud_run_service.location,
+    project=predict_cloud_run_service.project,
+    service=predict_cloud_run_service.name,
+    role="roles/run.invoker",
+    member="allUsers"
+)
+
 # Create push subscription for refund-update-from-irs topic to call service endpoint
 refund_update_subscription = gcp.pubsub.Subscription(
     "refund-update-subscription",
@@ -468,16 +540,24 @@ batch_service_account = gcp.serviceaccount.Account(
     description="Service account for refund batch processing"
 )
 
+# Create service account for Cloud Scheduler
+scheduler_service_account = gcp.serviceaccount.Account(
+    "cloudscheduler-service-account",
+    account_id="cloudscheduler-sa",
+    display_name="Cloud Scheduler Service Account",
+    description="Service account for Cloud Scheduler to trigger batch jobs"
+)
+
 # Create Cloud Run batch job
 batch_job = gcp.cloudrunv2.Job(
     "badhtaxrefundbatch-job",
-    name="badhtaxrefundbatch",
+    name=batch_job_name,
     location=region,
     template=gcp.cloudrunv2.JobTemplateArgs(
         template=gcp.cloudrunv2.JobTemplateTemplateArgs(
             containers=[
                        gcp.cloudrunv2.JobTemplateTemplateContainerArgs(
-                           image="jbadhree/badhtaxrefundbatch:v1.0.6",
+                           image=batch_image_name,
                     envs=[
                         gcp.cloudrunv2.JobTemplateTemplateContainerEnvArgs(
                             name="DATABASE_URL",
@@ -549,20 +629,22 @@ batch_job = gcp.cloudrunv2.Job(
     opts=pulumi.ResourceOptions(depends_on=[cloud_run_api, db_user_instance])
 )
 
-# Create Cloud Scheduler job to run batch job every 4 hours
+# Create Cloud Scheduler job to run batch job every 30 minutes
 scheduler_job = gcp.cloudscheduler.Job(
     "badhtaxrefundbatch-scheduler",
     name="badhtaxrefundbatch-scheduler",
-    description="Run refund batch processing every 4 hours",
-    schedule="0 */4 * * *",  # Every 4 hours
-    time_zone="UTC",
+    description="Run refund batch processing every 30 minutes",
+    schedule="*/30 * * * *",  # Every 30 minutes
+    time_zone="America/New_York",
     region=region,
     http_target=gcp.cloudscheduler.JobHttpTargetArgs(
         uri=pulumi.Output.concat(
             "https://",
             region,
-            "-run.googleapis.com/apis/run.googleapis.com/v2/namespaces/",
+            "-run.googleapis.com/v2/projects/",
             project_id,
+            "/locations/",
+            region,
             "/jobs/",
             batch_job.name,
             ":run"
@@ -571,15 +653,12 @@ scheduler_job = gcp.cloudscheduler.Job(
         headers={
             "Content-Type": "application/json"
         },
-        oidc_token=gcp.cloudscheduler.JobHttpTargetOidcTokenArgs(
-            service_account_email=pulumi.Output.concat(
-                "badhtaxrefundbatch@",
-                project_id,
-                ".iam.gserviceaccount.com"
-            )
+        oauth_token=gcp.cloudscheduler.JobHttpTargetOauthTokenArgs(
+            service_account_email=scheduler_service_account.email,
+            scope="https://www.googleapis.com/auth/cloud-platform"
         )
     ),
-    opts=pulumi.ResourceOptions(depends_on=[cloudscheduler_api, batch_job])
+    opts=pulumi.ResourceOptions(depends_on=[cloudscheduler_api, cloudrunjobs_api, batch_job, scheduler_service_account])
 )
 
 # Grant necessary permissions to service account
@@ -597,6 +676,15 @@ batch_scheduler_invoker_role = gcp.projects.IAMMember(
     member=pulumi.Output.concat("serviceAccount:", batch_service_account.email)
 )
 
+# Grant Cloud Run Jobs Runner role to batch service account
+batch_jobs_runner_role = gcp.projects.IAMMember(
+    "batch-jobs-runner-role",
+    project=project_id,
+    role="roles/run.invoker",
+    member=pulumi.Output.concat("serviceAccount:", batch_service_account.email)
+)
+
+
 # Grant Pub/Sub permissions to batch service account
 batch_pubsub_subscriber_role = gcp.projects.IAMMember(
     "batch-pubsub-subscriber-role",
@@ -610,6 +698,32 @@ batch_pubsub_viewer_role = gcp.projects.IAMMember(
     project=project_id,
     role="roles/pubsub.viewer",
     member=pulumi.Output.concat("serviceAccount:", batch_service_account.email)
+)
+
+# Grant Cloud Scheduler service account permission to impersonate batch service account
+scheduler_impersonation_role = gcp.serviceaccount.IAMMember(
+    "scheduler-impersonation-role",
+    service_account_id=batch_service_account.name,
+    role="roles/iam.serviceAccountTokenCreator",
+    member=pulumi.Output.concat("serviceAccount:", scheduler_service_account.email)
+)
+
+# Grant Cloud Scheduler service account permission to run Cloud Run jobs
+scheduler_jobs_runner_role = gcp.projects.IAMMember(
+    "scheduler-jobs-runner-role",
+    project=project_id,
+    role="roles/run.invoker",
+    member=pulumi.Output.concat("serviceAccount:", scheduler_service_account.email)
+)
+
+# Grant Cloud Scheduler service account permission to execute the specific Cloud Run job
+scheduler_job_invoker_role = gcp.cloudrunv2.JobIamMember(
+    "scheduler-job-invoker-role",
+    location=batch_job.location,
+    project=batch_job.project,
+    name=batch_job.name,
+    role="roles/run.invoker",
+    member=pulumi.Output.concat("serviceAccount:", scheduler_service_account.email)
 )
 
 batch_pubsub_admin_role = gcp.projects.IAMMember(
@@ -652,12 +766,18 @@ export("file_image_name", file_image_name)
 export("file_docker_hub_url", "https://hub.docker.com/r/jbadhree/badhtaxfileserv")
 export("file_service_account_email", file_service_account.email)
 
+# Prediction service exports
+export("predict_service_name", predict_service_name)
+export("predict_service_url", predict_cloud_run_service.statuses[0].url)
+export("predict_image_name", predict_image_name)
+export("predict_docker_hub_url", "https://hub.docker.com/r/jbadhree/badhrefundpredictserv")
+
 # Pub/Sub exports
 export("refund_update_topic_name", refund_update_topic.name)
 export("send_refund_topic_name", send_refund_topic.name)
 
 # Batch job exports
 export("batch_job_name", batch_job.name)
-export("batch_job_image", "jbadhree/badhtaxrefundbatch:v1.0.6")
+export("batch_job_image", batch_image_name)
 export("scheduler_job_name", scheduler_job.name)
 export("batch_service_account_email", batch_service_account.email)

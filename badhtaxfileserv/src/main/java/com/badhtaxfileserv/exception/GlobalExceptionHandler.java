@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-@RestControllerAdvice
+// @RestControllerAdvice  // Temporarily disabled to test SpringDoc compatibility
 @Slf4j
 public class GlobalExceptionHandler {
     
