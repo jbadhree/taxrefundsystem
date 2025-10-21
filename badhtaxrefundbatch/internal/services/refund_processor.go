@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"badhtaxrefundbatch/internal/database"
 
@@ -12,19 +13,21 @@ import (
 
 // RefundProcessor handles the processing of refunds
 type RefundProcessor struct {
-	refundRepo *database.RefundRepository
-	irsService *IRSService
-	maxWorkers int
-	batchSize  int
+	refundRepo    *database.RefundRepository
+	irsService    *IRSService
+	pubsubService *PubSubService
+	maxWorkers    int
+	batchSize     int
 }
 
 // NewRefundProcessor creates a new refund processor
-func NewRefundProcessor(refundRepo *database.RefundRepository, irsService *IRSService, maxWorkers, batchSize int) *RefundProcessor {
+func NewRefundProcessor(refundRepo *database.RefundRepository, irsService *IRSService, pubsubService *PubSubService, maxWorkers, batchSize int) *RefundProcessor {
 	return &RefundProcessor{
-		refundRepo: refundRepo,
-		irsService: irsService,
-		maxWorkers: maxWorkers,
-		batchSize:  batchSize,
+		refundRepo:    refundRepo,
+		irsService:    irsService,
+		pubsubService: pubsubService,
+		maxWorkers:    maxWorkers,
+		batchSize:     batchSize,
 	}
 }
 
@@ -138,6 +141,21 @@ func (p *RefundProcessor) worker(ctx context.Context, workerID int, refundChan <
 
 // processRefund processes a single refund
 func (p *RefundProcessor) processRefund(ctx context.Context, refund *database.Refund) error {
+	// Defensive check for nil refund
+	if refund == nil {
+		return fmt.Errorf("refund is nil")
+	}
+
+	// Defensive check for empty file ID
+	if refund.FileID == "" {
+		return fmt.Errorf("refund file ID is empty")
+	}
+
+	// Defensive check for nil pubsubService
+	if p.pubsubService == nil {
+		logrus.Warn("Pub/Sub service is nil, skipping refund update publishing")
+	}
+
 	logrus.WithField("file_id", refund.FileID).Debug("Processing refund")
 
 	// Validate file ID
@@ -168,6 +186,42 @@ func (p *RefundProcessor) processRefund(ctx context.Context, refund *database.Re
 		// Save updated refund
 		if err := p.refundRepo.UpdateRefundStatus(refund); err != nil {
 			return fmt.Errorf("failed to update refund status: %w", err)
+		}
+
+		// Publish refund update to Pub/Sub
+		if p.pubsubService != nil {
+			// Map batch status to service event type
+			var eventType string
+			switch refund.Status {
+			case "processed":
+				eventType = "refund.approved"
+			case "error":
+				eventType = "refund.error"
+			default:
+				eventType = "refund.inprogress"
+			}
+
+			// Create message in the format expected by the service
+			var processedAtStr string
+			if refund.ProcessedAt != nil {
+				processedAtStr = refund.ProcessedAt.Format("2006-01-02T15:04:05Z07:00")
+			} else {
+				processedAtStr = time.Now().Format("2006-01-02T15:04:05Z07:00")
+			}
+
+			message := fmt.Sprintf(`{"eventId":"%s","fileId":"%s","type":"%s","data":{"eventDate":"%s"}}`,
+				fmt.Sprintf("evt-%s-%d", refund.FileID, time.Now().Unix()),
+				refund.FileID,
+				eventType,
+				processedAtStr,
+			)
+
+			if err := p.pubsubService.PublishRefundUpdate(message); err != nil {
+				logrus.WithError(err).WithField("file_id", refund.FileID).Error("Failed to publish refund update to Pub/Sub")
+				// Don't fail the transaction if Pub/Sub fails
+			} else {
+				logrus.WithField("file_id", refund.FileID).Info("Published refund update to Pub/Sub")
+			}
 		}
 
 		logrus.WithFields(logrus.Fields{
@@ -211,4 +265,26 @@ func (p *RefundProcessor) HealthCheck() error {
 	}).Debug("Health check completed successfully")
 
 	return nil
+}
+
+// Helper functions for JSON formatting
+func formatErrorMessage(errMsg *string) string {
+	if errMsg == nil {
+		return "null"
+	}
+	return fmt.Sprintf(`"%s"`, *errMsg)
+}
+
+func formatStringValue(value *string) string {
+	if value == nil {
+		return `""`
+	}
+	return fmt.Sprintf(`"%s"`, *value)
+}
+
+func formatIntValue(value *int) int {
+	if value == nil {
+		return 0
+	}
+	return *value
 }

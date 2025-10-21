@@ -42,7 +42,7 @@ func LoadConfig() (*Config, error) {
 		CSVFilePath:          getEnv("CSV_FILE_PATH", "./data/refunds_seed.csv"),
 		// Pub/Sub configuration
 		GoogleCloudProject:     getEnv("GOOGLE_CLOUD_PROJECT", "build-and-learn"),
-		PubSubTopicName:        getEnv("PUBSUB_REFUND_UPDATE_TOPIC", "refund-update-from-irs"),
+		PubSubTopicName:        getEnv("PUBSUB_SEND_REFUND_TOPIC", "send-refund-to-irs"),
 		PubSubSubscriptionName: getEnv("PUBSUB_SUBSCRIPTION_NAME", "refund-batch-subscription"),
 		EnablePubSub:           getEnvAsBool("ENABLE_PUBSUB", true),
 	}

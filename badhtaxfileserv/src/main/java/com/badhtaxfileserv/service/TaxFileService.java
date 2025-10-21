@@ -81,8 +81,8 @@ public class TaxFileService {
                     java.time.Instant.now().toString()
                 );
                 
-                log.info("About to call pubSubService.publishRefundUpdate with message: {}", message);
-                pubSubService.publishRefundUpdate(message);
+                log.info("About to call pubSubService.publishSendRefund with message: {}", message);
+                pubSubService.publishSendRefund(message);
                 log.info("Published refund creation event to Pub/Sub for file ID: {}", taxFile.getId());
             } catch (Exception e) {
                 log.error("Failed to publish refund creation event for file ID: {}", taxFile.getId(), e);

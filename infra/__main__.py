@@ -154,7 +154,7 @@ web_cloud_run_service = gcp.cloudrun.Service(
                         ),
                         gcp.cloudrun.ServiceTemplateSpecContainerEnvArgs(
                             name="BADHTAXFILESERV_BASEURL",
-                            value="https://badhtaxfileserv-797008539263.us-central1.run.app"
+                            value="https://badhtaxfileserv-lumy2fdqia-uc.a.run.app"
                         )
                     ],
                     resources=gcp.cloudrun.ServiceTemplateSpecContainerResourcesArgs(
@@ -342,6 +342,21 @@ file_noauth_iam_member = gcp.cloudrun.IamMember(
     member="allUsers"
 )
 
+# Create push subscription for refund-update-from-irs topic to call service endpoint
+refund_update_subscription = gcp.pubsub.Subscription(
+    "refund-update-subscription",
+    name="refund-update-subscription",
+    topic=refund_update_topic.name,
+    push_config=gcp.pubsub.SubscriptionPushConfigArgs(
+        push_endpoint=pulumi.Output.concat(file_cloud_run_service.statuses[0].url, "/processRefundEvent"),
+        oidc_token=gcp.pubsub.SubscriptionPushConfigOidcTokenArgs(
+            service_account_email=file_service_account.email,
+        ),
+    ),
+    ack_deadline_seconds=600,
+    opts=pulumi.ResourceOptions(depends_on=[refund_update_topic, file_cloud_run_service])
+)
+
 # Create service account for batch job
 batch_service_account = gcp.serviceaccount.Account(
     "badhtaxrefundbatch-service-account",
@@ -358,8 +373,8 @@ batch_job = gcp.cloudrunv2.Job(
     template=gcp.cloudrunv2.JobTemplateArgs(
         template=gcp.cloudrunv2.JobTemplateTemplateArgs(
             containers=[
-                gcp.cloudrunv2.JobTemplateTemplateContainerArgs(
-                    image="jbadhree/badhtaxrefundbatch:v1.0.3",
+                       gcp.cloudrunv2.JobTemplateTemplateContainerArgs(
+                           image="jbadhree/badhtaxrefundbatch:v1.0.6",
                     envs=[
                         gcp.cloudrunv2.JobTemplateTemplateContainerEnvArgs(
                             name="DATABASE_URL",
@@ -404,8 +419,8 @@ batch_job = gcp.cloudrunv2.Job(
                             value=project_id
                         ),
                         gcp.cloudrunv2.JobTemplateTemplateContainerEnvArgs(
-                            name="PUBSUB_REFUND_UPDATE_TOPIC",
-                            value=refund_update_topic.name
+                            name="PUBSUB_SEND_REFUND_TOPIC",
+                            value=send_refund_topic.name
                         ),
                         gcp.cloudrunv2.JobTemplateTemplateContainerEnvArgs(
                             name="PUBSUB_SUBSCRIPTION_NAME",
@@ -531,6 +546,6 @@ export("send_refund_topic_name", send_refund_topic.name)
 
 # Batch job exports
 export("batch_job_name", batch_job.name)
-export("batch_job_image", "jbadhree/badhtaxrefundbatch:v1.0.3")
+export("batch_job_image", "jbadhree/badhtaxrefundbatch:v1.0.6")
 export("scheduler_job_name", scheduler_job.name)
 export("batch_service_account_email", batch_service_account.email)

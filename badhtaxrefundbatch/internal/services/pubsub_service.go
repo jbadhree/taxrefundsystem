@@ -113,7 +113,22 @@ func (p *PubSubService) PullMessages(ctx context.Context) error {
 		// Parse the message
 		var pubsubMsg PubSubMessage
 		if err := json.Unmarshal(msg.Data, &pubsubMsg); err != nil {
-			logrus.WithError(err).Error("Failed to parse Pub/Sub message")
+			logrus.WithError(err).WithField("message_data", string(msg.Data)).Error("Failed to parse Pub/Sub message")
+			msg.Ack() // Acknowledge to remove from queue
+			return
+		}
+
+		// Log the parsed message for debugging
+		logrus.WithFields(logrus.Fields{
+			"file_id":       pubsubMsg.FileID,
+			"user_id":       pubsubMsg.UserID,
+			"year":          pubsubMsg.Year,
+			"refund_amount": pubsubMsg.RefundAmount,
+		}).Info("Parsed Pub/Sub message")
+
+		// Validate parsed message
+		if pubsubMsg.FileID == "" {
+			logrus.WithField("message_data", string(msg.Data)).Error("Pub/Sub message has empty file_id")
 			msg.Ack() // Acknowledge to remove from queue
 			return
 		}
@@ -160,6 +175,33 @@ func (p *PubSubService) PullMessages(ctx context.Context) error {
 	}
 
 	logrus.WithField("message_count", messageCount).Info("Finished pulling messages from Pub/Sub")
+	return nil
+}
+
+// PublishRefundUpdate publishes a refund update message to the refund-update-from-irs topic
+func (p *PubSubService) PublishRefundUpdate(message string) error {
+	if p == nil || p.client == nil {
+		logrus.Warn("Pub/Sub service is disabled, skipping refund update publish")
+		return nil
+	}
+
+	// Create a publisher for the refund-update-from-irs topic
+	refundUpdateTopic := p.client.Topic("refund-update-from-irs")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result := refundUpdateTopic.Publish(ctx, &pubsub.Message{
+		Data: []byte(message),
+	})
+
+	// Wait for the publish to complete
+	_, err := result.Get(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to publish refund update: %w", err)
+	}
+
+	logrus.WithField("message", message).Info("Successfully published refund update to Pub/Sub")
 	return nil
 }
 

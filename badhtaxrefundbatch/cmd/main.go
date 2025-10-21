@@ -51,13 +51,15 @@ func main() {
 	// Create repositories and services
 	refundRepo := database.NewRefundRepository(db)
 	irsService := services.NewIRSService()
-	refundProcessor := services.NewRefundProcessor(refundRepo, irsService, cfg.MaxConcurrentWorkers, cfg.BatchSize)
 
 	// Create Pub/Sub service
 	pubsubService, err := services.NewPubSubService(cfg, refundRepo)
 	if err != nil {
 		logrus.WithError(err).Fatal("Failed to create Pub/Sub service")
 	}
+
+	// Create refund processor with Pub/Sub service
+	refundProcessor := services.NewRefundProcessor(refundRepo, irsService, pubsubService, cfg.MaxConcurrentWorkers, cfg.BatchSize)
 	defer func() {
 		if pubsubService != nil {
 			if err := pubsubService.Close(); err != nil {
