@@ -1,25 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { TaxFileService } from '@/services/taxFileService';
 import { UserDetails, TaxUserResponse } from '@/types/api';
+import { config } from '@/config/api';
 
-// Mock user details mapping (in a real app, this would come from a user service)
-const mockUserDetailsById: Record<string, UserDetails> = {
-  'user-1': {
-    userId: 'user-1',
-    username: 'Bruce Scott',
-    taxYears: [2022, 2023, 2024]
-  },
-  'user-2': {
-    userId: 'user-2',
-    username: 'Adam Smith',
-    taxYears: [2023, 2024, 2025]
-  },
-  'user-3': {
-    userId: 'user-3',
-    username: 'Karl Popper',
-    taxYears: [2023, 2024, 2025]
-  }
-};
+// Interface for user response from backend
+interface UserResponse {
+  userId: string;
+  firstName: string;
+  lastName: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,10 +24,31 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get basic user details from mock data
-    const userDetails = mockUserDetailsById[userId];
+    // Fetch user details from backend service
+    let userDetails: UserDetails;
+    try {
+      const response = await fetch(`${config.badhtaxfileservBaseUrl}/user/${userId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
-    if (!userDetails) {
+      if (!response.ok) {
+        return NextResponse.json(
+          { error: 'User not found' },
+          { status: 404 }
+        );
+      }
+
+      const user: UserResponse = await response.json();
+      userDetails = {
+        userId: user.userId,
+        username: `${user.firstName} ${user.lastName}`,
+        taxYears: [] // Will be populated from tax files
+      };
+    } catch (fetchError) {
+      console.error('Error fetching user from backend:', fetchError);
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
@@ -64,7 +76,11 @@ export async function GET(request: NextRequest) {
       console.error(`Failed to get tax files for user ${userId}:`, error);
       
       // Fallback to original behavior if the new endpoint fails
-      const taxFilePromises = userDetails.taxYears.map(async (year) => {
+      // Use default tax years if none are available from user details
+      const defaultTaxYears = [2022, 2023, 2024];
+      const taxYearsToFetch = userDetails.taxYears.length > 0 ? userDetails.taxYears : defaultTaxYears;
+      
+      const taxFilePromises = taxYearsToFetch.map(async (year) => {
         try {
           console.log(`Fetching tax file for user ${userId}, year ${year}`);
           const taxFileResponse = await TaxFileService.getTaxFile(userId, year);
@@ -91,6 +107,7 @@ export async function GET(request: NextRequest) {
         success: true,
         data: {
           ...userDetails,
+          taxYears: taxYearsToFetch,
           taxFileDetails: taxFileResults
         }
       });
