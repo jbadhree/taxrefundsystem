@@ -27,6 +27,7 @@ public class TaxFileService {
     private final RefundRepository refundRepository;
     private final ETAPredictor etaPredictor;
     private final PubSubServiceInterface pubSubService;
+    private final TaxFileCacheServiceInterface cacheService;
     
     @Transactional
     public TaxFileResponse createTaxFile(CreateTaxFileRequest request) {
@@ -94,16 +95,34 @@ public class TaxFileService {
         TaxFile completeTaxFile = taxFileRepository.findByUserIdAndYearWithRefund(request.getUserId(), request.getYear())
                 .orElseThrow(() -> new RuntimeException("Failed to retrieve created tax file"));
         
-        return TaxFileResponse.fromEntity(completeTaxFile);
+        TaxFileResponse response = TaxFileResponse.fromEntity(completeTaxFile);
+        
+        // Cache the response for future reads
+        cacheService.putInCache(request.getUserId(), request.getYear(), response);
+        
+        return response;
     }
     
     public TaxFileResponse getTaxFile(String userId, Integer year) {
         log.info("Retrieving tax file for user: {} and year: {}", userId, year);
         
+        // Try to get from cache first
+        TaxFileResponse cachedResponse = cacheService.getFromCache(userId, year);
+        if (cachedResponse != null) {
+            log.debug("Returning cached tax file for user: {} and year: {}", userId, year);
+            return cachedResponse;
+        }
+        
+        // Cache miss - fetch from database
         TaxFile taxFile = taxFileRepository.findByUserIdAndYearWithRefund(userId, year)
                 .orElseThrow(() -> new RuntimeException("Tax file not found for user: " + userId + " and year: " + year));
         
-        return TaxFileResponse.fromEntity(taxFile);
+        TaxFileResponse response = TaxFileResponse.fromEntity(taxFile);
+        
+        // Cache the response for future reads
+        cacheService.putInCache(userId, year, response);
+        
+        return response;
     }
     
     public TaxUserResponse getTaxFilesByUserId(String userId) {

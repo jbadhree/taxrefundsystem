@@ -56,6 +56,65 @@ cloudscheduler_api = gcp.projects.Service(
     disable_on_destroy=False
 )
 
+redis_api = gcp.projects.Service(
+    "redis-api",
+    service="redis.googleapis.com",
+    disable_on_destroy=False
+)
+
+vpc_access_api = gcp.projects.Service(
+    "vpc-access-api",
+    service="vpcaccess.googleapis.com",
+    disable_on_destroy=False
+)
+
+compute_api = gcp.projects.Service(
+    "compute-api",
+    service="compute.googleapis.com",
+    disable_on_destroy=False
+)
+
+servicenetworking_api = gcp.projects.Service(
+    "servicenetworking-api",
+    service="servicenetworking.googleapis.com",
+    disable_on_destroy=False
+)
+
+# Create VPC network for Redis connectivity
+vpc_network = gcp.compute.Network(
+    "taxrefund-vpc",
+    name="taxrefund-vpc",
+    auto_create_subnetworks=False,
+    opts=pulumi.ResourceOptions(depends_on=[compute_api])
+)
+
+# Create subnet for the VPC
+vpc_subnet = gcp.compute.Subnetwork(
+    "taxrefund-subnet",
+    name="taxrefund-subnet",
+    ip_cidr_range="10.0.0.0/24",
+    region=region,
+    network=vpc_network.id,
+    opts=pulumi.ResourceOptions(depends_on=[vpc_network])
+)
+
+# Create private service connection for Redis
+private_connection = gcp.servicenetworking.Connection(
+    "taxrefund-private-connection",
+    network=vpc_network.id,
+    service="servicenetworking.googleapis.com",
+    reserved_peering_ranges=[gcp.compute.GlobalAddress(
+        "taxrefund-peering-range",
+        name="taxrefund-peering-range",
+        purpose="VPC_PEERING",
+        address_type="INTERNAL",
+        prefix_length=16,
+        network=vpc_network.id,
+        opts=pulumi.ResourceOptions(depends_on=[vpc_network])
+    ).name],
+    opts=pulumi.ResourceOptions(depends_on=[servicenetworking_api, vpc_network])
+)
+
 # Create Cloud SQL instance
 db_instance = gcp.sql.DatabaseInstance(
     "taxrefund-db-instance",
@@ -116,6 +175,32 @@ db_user_instance = gcp.sql.User(
     instance=db_instance.name,
     password=db_password,
     opts=pulumi.ResourceOptions(depends_on=[database])
+)
+
+# Create Redis instance
+redis_instance = gcp.redis.Instance(
+    "taxrefund-redis",
+    name="taxrefund-redis",
+    memory_size_gb=1,
+    region=region,
+    tier="BASIC",
+    redis_version="REDIS_7_0",
+    display_name="Tax Refund System Redis Cache",
+    connect_mode="PRIVATE_SERVICE_ACCESS",
+    authorized_network=vpc_network.id,
+    opts=pulumi.ResourceOptions(depends_on=[redis_api, private_connection])
+)
+
+# Create VPC connector for Cloud Run
+vpc_connector = gcp.vpcaccess.Connector(
+    "taxrefund-vpc-connector",
+    name="taxrefund-vpc-connector",
+    region=region,
+    ip_cidr_range="10.8.0.0/28",
+    network=vpc_network.name,
+    min_instances=2,
+    max_instances=3,
+    opts=pulumi.ResourceOptions(depends_on=[vpc_access_api, vpc_network])
 )
 
 # Create Pub/Sub topics
@@ -303,6 +388,22 @@ file_cloud_run_service = gcp.cloudrun.Service(
                         gcp.cloudrun.ServiceTemplateSpecContainerEnvArgs(
                             name="FLYWAY_SCHEMAS",
                             value="taxfileservdb"
+                        ),
+                        gcp.cloudrun.ServiceTemplateSpecContainerEnvArgs(
+                            name="REDIS_ENABLED",
+                            value="true"
+                        ),
+                        gcp.cloudrun.ServiceTemplateSpecContainerEnvArgs(
+                            name="REDIS_HOST",
+                            value=redis_instance.host
+                        ),
+                        gcp.cloudrun.ServiceTemplateSpecContainerEnvArgs(
+                            name="REDIS_PORT",
+                            value="6379"
+                        ),
+                        gcp.cloudrun.ServiceTemplateSpecContainerEnvArgs(
+                            name="REDIS_PASSWORD",
+                            value=redis_instance.auth_string
                         )
                     ],
                     resources=gcp.cloudrun.ServiceTemplateSpecContainerResourcesArgs(
@@ -325,11 +426,13 @@ file_cloud_run_service = gcp.cloudrun.Service(
                 "autoscaling.knative.dev/maxScale": "10",
                 "autoscaling.knative.dev/minScale": "0",
                 "run.googleapis.com/execution-environment": "gen2",
-                "run.googleapis.com/startup-cpu-boost": "true"
+                "run.googleapis.com/startup-cpu-boost": "true",
+                "run.googleapis.com/vpc-access-connector": vpc_connector.name,
+                "run.googleapis.com/vpc-access-egress": "private-ranges-only"
             }
         )
     ),
-    opts=pulumi.ResourceOptions(depends_on=[cloud_run_api, db_user_instance, file_pubsub_publisher_role, file_pubsub_subscriber_role])
+    opts=pulumi.ResourceOptions(depends_on=[cloud_run_api, db_user_instance, file_pubsub_publisher_role, file_pubsub_subscriber_role, vpc_connector])
 )
 
 # Allow unauthenticated access to the file service
@@ -526,6 +629,15 @@ export("db_instance_connection_name", db_instance.connection_name)
 export("db_instance_private_ip", db_instance.private_ip_address)
 export("db_name", database.name)
 export("db_user", db_user_instance.name)
+
+# Redis exports
+export("redis_instance_name", redis_instance.name)
+export("redis_instance_host", redis_instance.host)
+export("redis_instance_port", redis_instance.port)
+
+# VPC exports
+export("vpc_network_name", vpc_network.name)
+export("vpc_connector_name", vpc_connector.name)
 
 # Web service exports
 export("web_service_name", web_service_name)

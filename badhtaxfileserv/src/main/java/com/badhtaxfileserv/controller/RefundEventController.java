@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.util.Map;
 
 @RestController
@@ -45,6 +46,8 @@ public class RefundEventController {
                 // This is a direct request
                 log.info("Processing direct request");
                 ObjectMapper objectMapper = new ObjectMapper();
+                objectMapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+                objectMapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
                 request = objectMapper.convertValue(requestBody, ProcessRefundEventRequest.class);
             }
             
@@ -81,6 +84,8 @@ public class RefundEventController {
         
         // Parse the JSON message data
         ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
+        objectMapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         JsonNode messageJson = objectMapper.readTree(messageData);
         
         // Create ProcessRefundEventRequest from the message

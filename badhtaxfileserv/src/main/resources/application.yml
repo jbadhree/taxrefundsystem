@@ -36,6 +36,21 @@ spring:
         location: ${GOOGLE_APPLICATION_CREDENTIALS:}
       pubsub:
         enabled: ${PUBSUB_ENABLED:false}
+  
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+      connect-timeout: 2000ms
+      read-timeout: 2000ms
 
 springdoc:
   api-docs:
@@ -64,4 +79,13 @@ pubsub:
   enabled: ${PUBSUB_ENABLED:false}
   refund-update-topic: ${PUBSUB_REFUND_UPDATE_TOPIC:refund-update-from-irs}
   send-refund-topic: ${PUBSUB_SEND_REFUND_TOPIC:send-refund-to-irs}
+
+cache:
+  type: ${CACHE_TYPE:redis}
+  redis:
+    time-to-live: 3600000  # 1 hour in milliseconds
+    cache-null-values: false
+
+redis:
+  enabled: ${REDIS_ENABLED:true}
 

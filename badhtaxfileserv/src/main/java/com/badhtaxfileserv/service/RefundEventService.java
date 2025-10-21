@@ -20,6 +20,7 @@ public class RefundEventService {
     
     private final RefundRepository refundRepository;
     private final RefundEventRepository refundEventRepository;
+    private final TaxFileCacheServiceInterface cacheService;
     
     @Transactional
     public void processRefundEvent(ProcessRefundEventRequest request) {
@@ -33,11 +34,13 @@ public class RefundEventService {
         Refund.RefundStatus currentStatus = refund.getRefundStatus();
         
         // Process event based on type
+        boolean statusChanged = false;
         switch (eventType) {
             case REFUND_INPROGRESS:
                 if (currentStatus == Refund.RefundStatus.PENDING) {
                     refund.setRefundStatus(Refund.RefundStatus.IN_PROGRESS);
                     refundRepository.save(refund);
+                    statusChanged = true;
                     log.info("Updated refund status to IN_PROGRESS");
                 } else {
                     log.info("Refund already in progress, skipping event");
@@ -47,12 +50,14 @@ public class RefundEventService {
             case REFUND_APPROVED:
                 refund.setRefundStatus(Refund.RefundStatus.APPROVED);
                 refundRepository.save(refund);
+                statusChanged = true;
                 log.info("Updated refund status to APPROVED");
                 break;
                 
             case REFUND_REJECTED:
                 refund.setRefundStatus(Refund.RefundStatus.REJECTED);
                 refundRepository.save(refund);
+                statusChanged = true;
                 log.info("Updated refund status to REJECTED");
                 break;
                 
@@ -63,8 +68,17 @@ public class RefundEventService {
                     refund.setRefundErrors(convertErrorReasonsToJson(request.getData().getErrorReasons()));
                 }
                 refundRepository.save(refund);
+                statusChanged = true;
                 log.info("Updated refund status to ERROR");
                 break;
+        }
+        
+        // Invalidate cache if status changed
+        if (statusChanged) {
+            String userId = refund.getTaxFile().getUserId();
+            Integer year = refund.getTaxFile().getYear();
+            cacheService.evictFromCache(userId, year);
+            log.info("Invalidated cache for tax file: userId={}, year={}", userId, year);
         }
         
         // Create event record
