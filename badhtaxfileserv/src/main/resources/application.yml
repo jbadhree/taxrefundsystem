@@ -34,6 +34,8 @@ spring:
       project-id: ${GOOGLE_CLOUD_PROJECT:}
       credentials:
         location: ${GOOGLE_APPLICATION_CREDENTIALS:}
+      pubsub:
+        enabled: ${PUBSUB_ENABLED:false}
 
 springdoc:
   api-docs:

@@ -1,3 +1,13 @@
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+
 # Gradle
 .gradle/
 build/
@@ -11,26 +21,59 @@ gradlew.bat
 *.iml
 *.ipr
 *.iws
+.project
+.classpath
+.settings/
 
 # OS
 .DS_Store
 Thumbs.db
+*.swp
+*.swo
+*~
 
 # Logs
 *.log
+logs/
 
 # Test
 src/test/
+test-results/
+surefire-reports/
 
 # Git
 .git/
 .gitignore
+.gitattributes
 
 # Documentation
 README.md
 docs/
+*.md
 
 # Docker
-Dockerfile
+Dockerfile*
 .dockerignore
+docker-compose*.yml
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Coverage reports
+coverage/
+*.lcov
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
 

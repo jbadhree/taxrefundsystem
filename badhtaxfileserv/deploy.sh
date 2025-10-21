@@ -38,7 +38,7 @@ MEMORY="1Gi"
 CPU="1000m"
 MIN_INSTANCES=0
 MAX_INSTANCES=10
-TIMEOUT=300
+TIMEOUT=600
 
 # Database configuration (these should be set as environment variables or provided as arguments)
 DB_INSTANCE_NAME="${DB_INSTANCE_NAME:-taxrefund-db}"
@@ -164,6 +164,10 @@ deploy_new_service() {
         --set-env-vars="SERVER_PORT=$PORT" \
         --set-env-vars="SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT=30000" \
         --set-env-vars="SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=5" \
+        --set-env-vars="GOOGLE_CLOUD_PROJECT=$PROJECT_ID" \
+        --set-env-vars="PUBSUB_REFUND_UPDATE_TOPIC=refund-update-from-irs" \
+        --set-env-vars="PUBSUB_SEND_REFUND_TOPIC=send-refund-to-irs" \
+        --set-env-vars="PUBSUB_ENABLED=true" \
         --execution-environment=gen2 \
         --cpu-boost \
         --quiet
@@ -172,11 +176,15 @@ deploy_new_service() {
 # Function to update existing service
 update_service() {
     print_status "Updating existing Cloud Run service: $SERVICE_NAME"
-    print_info "Only updating the Docker image - keeping existing configuration"
+    print_info "Updating Docker image and Pub/Sub environment variables"
     
     gcloud run services update $SERVICE_NAME \
         --image=$FULL_IMAGE_NAME \
         --region=$REGION \
+        --set-env-vars="GOOGLE_CLOUD_PROJECT=$PROJECT_ID" \
+        --set-env-vars="PUBSUB_REFUND_UPDATE_TOPIC=refund-update-from-irs" \
+        --set-env-vars="PUBSUB_SEND_REFUND_TOPIC=send-refund-to-irs" \
+        --set-env-vars="PUBSUB_ENABLED=true" \
         --quiet
 }
 

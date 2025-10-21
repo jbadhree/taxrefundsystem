@@ -193,6 +193,29 @@ web_noauth_iam_member = gcp.cloudrun.IamMember(
     member="allUsers"
 )
 
+# Create service account for file service
+file_service_account = gcp.serviceaccount.Account(
+    "badhtaxfileserv-service-account",
+    account_id="badhtaxfileserv",
+    display_name="BadhTaxFileServ Service Account",
+    description="Service account for tax file service with Pub/Sub access"
+)
+
+# Grant Pub/Sub permissions to file service account
+file_pubsub_publisher_role = gcp.projects.IAMMember(
+    "file-pubsub-publisher-role",
+    project=project_id,
+    role="roles/pubsub.publisher",
+    member=pulumi.Output.concat("serviceAccount:", file_service_account.email)
+)
+
+file_pubsub_subscriber_role = gcp.projects.IAMMember(
+    "file-pubsub-subscriber-role",
+    project=project_id,
+    role="roles/pubsub.subscriber",
+    member=pulumi.Output.concat("serviceAccount:", file_service_account.email)
+)
+
 # Create Cloud Run service for file service
 file_cloud_run_service = gcp.cloudrun.Service(
     "badhtaxfileserv-service",
@@ -200,6 +223,7 @@ file_cloud_run_service = gcp.cloudrun.Service(
     location=region,
     template=gcp.cloudrun.ServiceTemplateArgs(
         spec=gcp.cloudrun.ServiceTemplateSpecArgs(
+            service_account_name=file_service_account.email,
             containers=[
                 gcp.cloudrun.ServiceTemplateSpecContainerArgs(
                     image=file_image_name,
@@ -215,21 +239,21 @@ file_cloud_run_service = gcp.cloudrun.Service(
                             value="production"
                         ),
                         gcp.cloudrun.ServiceTemplateSpecContainerEnvArgs(
-                            name="SPRING_DATASOURCE_URL",
+                            name="DATABASE_URL",
                             value=pulumi.Output.concat(
                                 "jdbc:postgresql://",
                                 db_instance.public_ip_address,
                                 ":5432/",
                                 db_name,
-                                "?sslmode=require"
+                                "?sslmode=require&currentSchema=taxfileservdb"
                             )
                         ),
                         gcp.cloudrun.ServiceTemplateSpecContainerEnvArgs(
-                            name="SPRING_DATASOURCE_USERNAME",
+                            name="POSTGRES_USER",
                             value=db_user
                         ),
                         gcp.cloudrun.ServiceTemplateSpecContainerEnvArgs(
-                            name="SPRING_DATASOURCE_PASSWORD",
+                            name="POSTGRES_PASSWORD",
                             value=db_password
                         ),
                         gcp.cloudrun.ServiceTemplateSpecContainerEnvArgs(
@@ -270,7 +294,15 @@ file_cloud_run_service = gcp.cloudrun.Service(
                         ),
                         gcp.cloudrun.ServiceTemplateSpecContainerEnvArgs(
                             name="PUBSUB_ENABLED",
-                            value="false"
+                            value="true"
+                        ),
+                        gcp.cloudrun.ServiceTemplateSpecContainerEnvArgs(
+                            name="SPRING_CLOUD_GCP_PUBSUB_ENABLED",
+                            value="true"
+                        ),
+                        gcp.cloudrun.ServiceTemplateSpecContainerEnvArgs(
+                            name="FLYWAY_SCHEMAS",
+                            value="taxfileservdb"
                         )
                     ],
                     resources=gcp.cloudrun.ServiceTemplateSpecContainerResourcesArgs(
@@ -286,7 +318,7 @@ file_cloud_run_service = gcp.cloudrun.Service(
                 )
             ],
             container_concurrency=80,
-            timeout_seconds=300
+            timeout_seconds=600
         ),
         metadata=gcp.cloudrun.ServiceTemplateMetadataArgs(
             annotations={
@@ -297,7 +329,7 @@ file_cloud_run_service = gcp.cloudrun.Service(
             }
         )
     ),
-    opts=pulumi.ResourceOptions(depends_on=[cloud_run_api, db_user_instance])
+    opts=pulumi.ResourceOptions(depends_on=[cloud_run_api, db_user_instance, file_pubsub_publisher_role, file_pubsub_subscriber_role])
 )
 
 # Allow unauthenticated access to the file service
@@ -452,6 +484,7 @@ export("file_service_name", file_service_name)
 export("file_service_url", file_cloud_run_service.statuses[0].url)
 export("file_image_name", file_image_name)
 export("file_docker_hub_url", "https://hub.docker.com/r/jbadhree/badhtaxfileserv")
+export("file_service_account_email", file_service_account.email)
 
 # Pub/Sub exports
 export("refund_update_topic_name", refund_update_topic.name)

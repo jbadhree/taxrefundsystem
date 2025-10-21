@@ -28,14 +28,15 @@ if ! docker info > /dev/null 2>&1; then
     exit 1
 fi
 
-# Build the Docker image
-print_status "Building Docker image..."
-docker build -t jbadhree/badhtaxfileserv:latest .
+# Build the Docker image with buildx for linux/amd64 platform
+print_status "Building Docker image for linux/amd64 platform..."
+docker buildx build --platform linux/amd64 -t jbadhree/badhtaxfileserv:latest --push .
 
-# Tag with version (if provided)
+# Tag with version (if provided) and push
 if [ ! -z "$1" ]; then
-    docker tag jbadhree/badhtaxfileserv:latest jbadhree/badhtaxfileserv:$1
-    print_status "Tagged as jbadhree/badhtaxfileserv:$1"
+    print_status "Building and pushing version jbadhree/badhtaxfileserv:$1"
+    docker buildx build --platform linux/amd64 -t jbadhree/badhtaxfileserv:$1 --push .
+    print_status "Tagged and pushed as jbadhree/badhtaxfileserv:$1"
 fi
 
 # Check if user is logged in to Docker Hub
@@ -44,16 +45,10 @@ if ! docker info | grep -q "Username:"; then
     docker login
 fi
 
-# Push to Docker Hub
-print_status "Pushing to Docker Hub..."
-docker push jbadhree/badhtaxfileserv:latest
-
-if [ ! -z "$1" ]; then
-    docker push jbadhree/badhtaxfileserv:$1
-    print_status "Pushed jbadhree/badhtaxfileserv:$1"
-fi
-
 print_status "Build and push completed successfully!"
-print_status "Images available:"
-docker images | grep jbadhree/badhtaxfileserv
+print_status "Images pushed to Docker Hub:"
+print_status "- jbadhree/badhtaxfileserv:latest"
+if [ ! -z "$1" ]; then
+    print_status "- jbadhree/badhtaxfileserv:$1"
+fi
 

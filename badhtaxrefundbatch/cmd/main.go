@@ -154,6 +154,3 @@ func seedData(refundRepo *database.RefundRepository, csvFilePath string) error {
 	logrus.Info("Data seeding completed successfully")
 	return nil
 }
-
-
-

@@ -26,6 +26,7 @@ public class TaxFileService {
     private final TaxFileRepository taxFileRepository;
     private final RefundRepository refundRepository;
     private final ETAPredictor etaPredictor;
+    private final PubSubServiceInterface pubSubService;
     
     @Transactional
     public TaxFileResponse createTaxFile(CreateTaxFileRequest request) {
@@ -63,8 +64,30 @@ public class TaxFileService {
                     .refundEta(etaPredictor.predictETA())
                     .build();
             
-            refundRepository.save(refund);
+            refund = refundRepository.save(refund);
             log.info("Created refund record with ETA: {}", refund.getRefundEta());
+            
+            // Send Pub/Sub message for refund creation
+            // Message format matches batch job database structure: file_id, status, error_message
+            try {
+                String message = String.format(
+                    "{\"file_id\":\"%s\",\"status\":\"%s\",\"error_message\":null,\"refund_amount\":%s,\"user_id\":\"%s\",\"year\":%d,\"eta\":\"%s\",\"timestamp\":\"%s\"}",
+                    taxFile.getId(),  // file_id - matches batch job database field
+                    "pending",        // status - matches batch job database field  
+                    request.getRefund(),
+                    taxFile.getUserId(),
+                    taxFile.getYear(),
+                    refund.getRefundEta(),
+                    java.time.Instant.now().toString()
+                );
+                
+                log.info("About to call pubSubService.publishRefundUpdate with message: {}", message);
+                pubSubService.publishRefundUpdate(message);
+                log.info("Published refund creation event to Pub/Sub for file ID: {}", taxFile.getId());
+            } catch (Exception e) {
+                log.error("Failed to publish refund creation event for file ID: {}", taxFile.getId(), e);
+                // Don't fail the transaction if Pub/Sub fails
+            }
         }
         
         // Fetch the complete tax file with refund
