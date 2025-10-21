@@ -18,6 +18,11 @@ type Config struct {
 	LogLevel             string
 	SeedData             bool
 	CSVFilePath          string
+	// Pub/Sub configuration
+	GoogleCloudProject     string
+	PubSubTopicName        string
+	PubSubSubscriptionName string
+	EnablePubSub           bool
 }
 
 // LoadConfig loads configuration from environment variables
@@ -35,6 +40,11 @@ func LoadConfig() (*Config, error) {
 		LogLevel:             getEnv("LOG_LEVEL", "info"),
 		SeedData:             getEnvAsBool("SEED_DATA", true),
 		CSVFilePath:          getEnv("CSV_FILE_PATH", "./data/refunds_seed.csv"),
+		// Pub/Sub configuration
+		GoogleCloudProject:     getEnv("GOOGLE_CLOUD_PROJECT", "build-and-learn"),
+		PubSubTopicName:        getEnv("PUBSUB_REFUND_UPDATE_TOPIC", "refund-update-from-irs"),
+		PubSubSubscriptionName: getEnv("PUBSUB_SUBSCRIPTION_NAME", "refund-batch-subscription"),
+		EnablePubSub:           getEnvAsBool("ENABLE_PUBSUB", true),
 	}
 
 	// Set log level

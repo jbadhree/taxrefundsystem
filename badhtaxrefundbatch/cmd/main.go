@@ -53,6 +53,19 @@ func main() {
 	irsService := services.NewIRSService()
 	refundProcessor := services.NewRefundProcessor(refundRepo, irsService, cfg.MaxConcurrentWorkers, cfg.BatchSize)
 
+	// Create Pub/Sub service
+	pubsubService, err := services.NewPubSubService(cfg, refundRepo)
+	if err != nil {
+		logrus.WithError(err).Fatal("Failed to create Pub/Sub service")
+	}
+	defer func() {
+		if pubsubService != nil {
+			if err := pubsubService.Close(); err != nil {
+				logrus.WithError(err).Error("Failed to close Pub/Sub service")
+			}
+		}
+	}()
+
 	// Seed data if requested
 	if cfg.SeedData {
 		if err := seedData(refundRepo, cfg.CSVFilePath); err != nil {
@@ -80,7 +93,7 @@ func main() {
 	}
 
 	// Process refunds
-	if err := processRefunds(ctx, refundProcessor, cfg.ProcessingInterval); err != nil {
+	if err := processRefunds(ctx, refundProcessor, pubsubService, cfg.ProcessingInterval); err != nil {
 		logrus.WithError(err).Error("Failed to process refunds")
 		os.Exit(1)
 	}
@@ -89,11 +102,11 @@ func main() {
 }
 
 // processRefunds processes refunds either once or continuously based on configuration
-func processRefunds(ctx context.Context, processor *services.RefundProcessor, interval time.Duration) error {
+func processRefunds(ctx context.Context, processor *services.RefundProcessor, pubsubService *services.PubSubService, interval time.Duration) error {
 	// If interval is 0, process once and exit
 	if interval == 0 {
 		logrus.Info("Processing refunds once")
-		return processor.ProcessPendingRefunds(ctx)
+		return processRefundsOnce(ctx, processor, pubsubService)
 	}
 
 	// Process continuously with interval
@@ -109,7 +122,7 @@ func processRefunds(ctx context.Context, processor *services.RefundProcessor, in
 		case <-ticker.C:
 			logrus.Info("Starting scheduled refund processing")
 
-			if err := processor.ProcessPendingRefunds(ctx); err != nil {
+			if err := processRefundsOnce(ctx, processor, pubsubService); err != nil {
 				logrus.WithError(err).Error("Failed to process refunds in scheduled run")
 				// Continue processing even if one batch fails
 			}
@@ -128,6 +141,22 @@ func processRefunds(ctx context.Context, processor *services.RefundProcessor, in
 			}
 		}
 	}
+}
+
+// processRefundsOnce pulls messages from Pub/Sub and processes all pending refunds
+func processRefundsOnce(ctx context.Context, processor *services.RefundProcessor, pubsubService *services.PubSubService) error {
+	// First, pull messages from Pub/Sub and load them into database
+	if pubsubService != nil {
+		logrus.Info("Pulling messages from Pub/Sub")
+		if err := pubsubService.PullMessages(ctx); err != nil {
+			logrus.WithError(err).Error("Failed to pull messages from Pub/Sub")
+			// Continue processing even if Pub/Sub fails
+		}
+	}
+
+	// Then process all pending refunds (including those from Pub/Sub)
+	logrus.Info("Processing all pending refunds")
+	return processor.ProcessPendingRefunds(ctx)
 }
 
 // seedData seeds the database with sample data

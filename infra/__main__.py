@@ -342,6 +342,14 @@ file_noauth_iam_member = gcp.cloudrun.IamMember(
     member="allUsers"
 )
 
+# Create service account for batch job
+batch_service_account = gcp.serviceaccount.Account(
+    "badhtaxrefundbatch-service-account",
+    account_id="badhtaxrefundbatch",
+    display_name="BadhTaxRefundBatch Service Account",
+    description="Service account for refund batch processing"
+)
+
 # Create Cloud Run batch job
 batch_job = gcp.cloudrunv2.Job(
     "badhtaxrefundbatch-job",
@@ -351,7 +359,7 @@ batch_job = gcp.cloudrunv2.Job(
         template=gcp.cloudrunv2.JobTemplateTemplateArgs(
             containers=[
                 gcp.cloudrunv2.JobTemplateTemplateContainerArgs(
-                    image="jbadhree/badhtaxrefundbatch:v1.0.2",
+                    image="jbadhree/badhtaxrefundbatch:v1.0.3",
                     envs=[
                         gcp.cloudrunv2.JobTemplateTemplateContainerEnvArgs(
                             name="DATABASE_URL",
@@ -390,6 +398,22 @@ batch_job = gcp.cloudrunv2.Job(
                         gcp.cloudrunv2.JobTemplateTemplateContainerEnvArgs(
                             name="CSV_FILE_PATH",
                             value="./data/refunds_seed.csv"
+                        ),
+                        gcp.cloudrunv2.JobTemplateTemplateContainerEnvArgs(
+                            name="GOOGLE_CLOUD_PROJECT",
+                            value=project_id
+                        ),
+                        gcp.cloudrunv2.JobTemplateTemplateContainerEnvArgs(
+                            name="PUBSUB_REFUND_UPDATE_TOPIC",
+                            value=refund_update_topic.name
+                        ),
+                        gcp.cloudrunv2.JobTemplateTemplateContainerEnvArgs(
+                            name="PUBSUB_SUBSCRIPTION_NAME",
+                            value="refund-batch-subscription"
+                        ),
+                        gcp.cloudrunv2.JobTemplateTemplateContainerEnvArgs(
+                            name="ENABLE_PUBSUB",
+                            value="true"
                         )
                     ],
                     resources=gcp.cloudrunv2.JobTemplateTemplateContainerResourcesArgs(
@@ -400,7 +424,8 @@ batch_job = gcp.cloudrunv2.Job(
                     )
                 )
             ],
-            timeout="3600s"  # 1 hour timeout
+            timeout="3600s",  # 1 hour timeout
+            service_account=batch_service_account.email
         )
     ),
     opts=pulumi.ResourceOptions(depends_on=[cloud_run_api, db_user_instance])
@@ -439,14 +464,6 @@ scheduler_job = gcp.cloudscheduler.Job(
     opts=pulumi.ResourceOptions(depends_on=[cloudscheduler_api, batch_job])
 )
 
-# Create service account for batch job
-batch_service_account = gcp.serviceaccount.Account(
-    "badhtaxrefundbatch-service-account",
-    account_id="badhtaxrefundbatch",
-    display_name="BadhTaxRefundBatch Service Account",
-    description="Service account for refund batch processing"
-)
-
 # Grant necessary permissions to service account
 batch_sql_client_role = gcp.projects.IAMMember(
     "batch-sql-client-role",
@@ -459,6 +476,28 @@ batch_scheduler_invoker_role = gcp.projects.IAMMember(
     "batch-scheduler-invoker-role",
     project=project_id,
     role="roles/run.invoker",
+    member=pulumi.Output.concat("serviceAccount:", batch_service_account.email)
+)
+
+# Grant Pub/Sub permissions to batch service account
+batch_pubsub_subscriber_role = gcp.projects.IAMMember(
+    "batch-pubsub-subscriber-role",
+    project=project_id,
+    role="roles/pubsub.subscriber",
+    member=pulumi.Output.concat("serviceAccount:", batch_service_account.email)
+)
+
+batch_pubsub_viewer_role = gcp.projects.IAMMember(
+    "batch-pubsub-viewer-role",
+    project=project_id,
+    role="roles/pubsub.viewer",
+    member=pulumi.Output.concat("serviceAccount:", batch_service_account.email)
+)
+
+batch_pubsub_admin_role = gcp.projects.IAMMember(
+    "batch-pubsub-admin-role",
+    project=project_id,
+    role="roles/pubsub.admin",
     member=pulumi.Output.concat("serviceAccount:", batch_service_account.email)
 )
 
@@ -492,6 +531,6 @@ export("send_refund_topic_name", send_refund_topic.name)
 
 # Batch job exports
 export("batch_job_name", batch_job.name)
-export("batch_job_image", "jbadhree/badhtaxrefundbatch:v1.0.2")
+export("batch_job_image", "jbadhree/badhtaxrefundbatch:v1.0.3")
 export("scheduler_job_name", scheduler_job.name)
 export("batch_service_account_email", batch_service_account.email)

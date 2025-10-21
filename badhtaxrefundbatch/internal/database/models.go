@@ -12,6 +12,10 @@ type Refund struct {
 	FileID       string     `gorm:"uniqueIndex;not null" json:"file_id"`
 	Status       string     `gorm:"not null;default:'pending'" json:"status"`
 	ErrorMessage *string    `gorm:"type:text" json:"error_message,omitempty"`
+	UserID       *string    `gorm:"type:varchar(255)" json:"user_id,omitempty"`
+	Year         *int       `json:"year,omitempty"`
+	RefundAmount *string    `gorm:"type:varchar(50)" json:"refund_amount,omitempty"`
+	ETA          *string    `gorm:"type:varchar(100)" json:"eta,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at"`
 	ProcessedAt  *time.Time `json:"processed_at,omitempty"`
@@ -104,6 +108,3 @@ func (r *RefundRepository) GetRefundStats() (map[string]int64, error) {
 
 	return stats, nil
 }
-
-
-
