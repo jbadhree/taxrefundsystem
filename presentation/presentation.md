@@ -154,6 +154,23 @@ Focus Areas - Efficiency, Reliability, Secure, Highly Available, Usability
 
 ![High Level Design](hld-components.png) 
 
+#### Component Integration
+
+**Service Communication Flow:**
+1. **Web Frontend** → **Tax File Service** (HTTP REST)
+2. **Tax File Service** → **ML Prediction Service** (HTTP REST)
+3. **Tax File Service** → **Pub/Sub** (Async messaging)
+4. **Batch Processor** → **Pub/Sub** (Async messaging)
+5. **Batch Processor** → **Tax File Service** (Pub/Sub events)
+
+**Data Flow:**
+1. User submits tax file via Web Frontend
+2. Tax File Service stores data and creates refund record
+3. ML Service predicts refund timeline
+4. Batch Processor checks IRS status periodically
+5. Status updates flow back through Pub/Sub to Tax File Service
+6. Web Frontend displays updated status to user
+
 **Security Design**
 
 ![High Level Design - Secure](hld-secure.png) 
@@ -165,13 +182,20 @@ Focus Areas - Efficiency, Reliability, Secure, Highly Available, Usability
 - Applicaiton Security JWT auth
 - Data Security 
 
-**Performance**
+**Performance Considerations**
 - Load Balancers
 - Auto scaled Cluster
 - Cacheing
 - Loose Coupling 
 
-**Data Pipeline**
+**Security & Performance (Implemented):**
+- **Caching**: Redis for high-frequency queries
+- **Database**: PostgreSQL with connection pooling
+- **Monitoring**: Health checks and metrics endpoints
+- **Scalability**: Auto-scaling Cloud Run services 
+
+
+**Data Pipeline Considerations**
 
 - ETL job to load data in Data Bricks (Or OSS Apache Spark)
 - Regular Model Re-Training
@@ -435,29 +459,104 @@ Response: 200 OK
 }
 ```
 
-#### Component Integration
+#### Pub/Sub Topic Design
 
-**Service Communication Flow:**
-1. **Web Frontend** → **Tax File Service** (HTTP REST)
-2. **Tax File Service** → **ML Prediction Service** (HTTP REST)
-3. **Tax File Service** → **Pub/Sub** (Async messaging)
-4. **Batch Processor** → **Pub/Sub** (Async messaging)
-5. **Batch Processor** → **Tax File Service** (Pub/Sub events)
+**Topic Architecture:**
 
-**Data Flow:**
-1. User submits tax file via Web Frontend
-2. Tax File Service stores data and creates refund record
-3. ML Service predicts refund timeline
-4. Batch Processor checks IRS status periodically
-5. Status updates flow back through Pub/Sub to Tax File Service
-6. Web Frontend displays updated status to user
+| Topic Name | Purpose | Publisher | Subscriber | Message Flow |
+|------------|---------|-----------|------------|--------------|
+| `refund-update-from-irs` | IRS status updates | Batch Processor | Tax File Service | Batch → Tax File Service |
+| `send-refund-to-irs` | New refund requests | Tax File Service | Batch Processor | Tax File Service → Batch |
 
-**Security & Performance:**
-- **Authentication**: JWT tokens (planned)
-- **Caching**: Redis for high-frequency queries
-- **Database**: PostgreSQL with connection pooling
-- **Monitoring**: Health checks and metrics endpoints
-- **Scalability**: Auto-scaling Cloud Run services 
+**Event Processing Flow:**
+
+1. **Tax File Service** creates refund record
+2. **Tax File Service** publishes message to `send-refund-to-irs` topic
+3. **Batch Processor** pulls message from `send-refund-to-irs` topic
+4. **Batch Processor** processes refund with IRS service
+5. **Batch Processor** publishes result to `refund-update-from-irs` topic
+6. **Tax File Service** receives update via push subscription
+7. **Tax File Service** updates refund status in database
+
+**Message Structures:**
+
+**1. Send Refund Message (send-refund-to-irs topic)**
+
+**Published by:** Tax File Service (Java Spring Boot)  
+**Consumed by:** Batch Processor (Go)
+
+**Message Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| file_id | String | Yes | Tax file identifier |
+| status | String | Yes | Refund status (pending, in_progress, processed, error) |
+| error_message | String | No | Error message if status is "error" |
+| refund_amount | String | Yes | Refund amount as string |
+| user_id | String | Yes | User identifier |
+| year | Integer | Yes | Tax year |
+| eta | String | No | Estimated time of arrival |
+| timestamp | String | Yes | Message creation timestamp |
+
+**2. Refund Update Message (refund-update-from-irs topic)**
+
+**Published by:** Batch Processor (Go)  
+**Consumed by:** Tax File Service (Java Spring Boot)
+
+**Message Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| eventId | String | Yes | Unique event identifier |
+| fileId | String | Yes | Tax file identifier |
+| type | String | Yes | Event type (refund.approved, refund.rejected, refund.error, refund.inprogress) |
+| data.eventDate | DateTime | Yes | When the event occurred |
+| data.errorReasons | Array | No | Error details if type is "refund.error" |
+
+```json
+{
+  "eventId": "evt-{fileId}-{timestamp}",
+  "fileId": "uuid-here",
+  "type": "refund.approved|refund.rejected|refund.error|refund.inprogress",
+  "data": {
+    "eventDate": "2023-02-15T10:30:00Z",
+    "errorReasons": [
+      {
+        "code": "IRS_ERROR_001",
+        "message": "Invalid file format"
+      }
+    ]
+  }
+}
+```
+
+
+**Push Subscription Configuration:**
+
+```yaml
+Subscription: refund-update-subscription
+Topic: refund-update-from-irs
+Push Endpoint: https://{{taxfileserv-url}}/processRefundEvent
+Ack Deadline: 600 seconds
+Authentication: OIDC Token with service account
+```
+
+**Error Handling:**
+
+- **Message Validation**: Invalid messages are acknowledged and logged
+- **Retry Logic**: Failed processing triggers retry with exponential backoff
+- **Dead Letter Queue**: Unprocessable messages after max retries
+- **Monitoring**: Message count, processing time, and error rates tracked
+
+**Security:**
+
+- **Service Account Authentication**: Each service uses dedicated service accounts
+- **IAM Roles**: Publisher/Subscriber roles assigned per service
+- **OIDC Tokens**: Push subscriptions use OIDC for authentication
+- **Message Encryption**: Messages encrypted in transit and at rest
+
+
+
 
 
 
