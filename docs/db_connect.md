@@ -2,7 +2,7 @@ Cloud SQL Connect
 
 gcloud sql connect taxrefund-db --user=taxrefund_user --database=taxrefund
 
-Enter DB Password by getting password from `pulumi config get dbPassword` TaxRefund2024!Secure
+Enter DB Password by getting password from `pulumi config get dbPassword` 
 
 SET search_path TO taxfileservdb, public;
 or
@@ -47,3 +47,16 @@ WHERE file_id IN (
     '0b9941b1-59bf-4f18-b342-797b02c8808f',
     '2c8ff4e0-4e2e-43aa-b43a-9cccaa9181f8'
 );
+
+
+SET search_path TO taxfileservdb;
+
+SELECT 
+    tf.id as file_id,
+    r.refund_status,
+    re.error_reasons
+FROM refund_events re
+JOIN refund r ON r.id = re.refund_id
+JOIN tax_file tf ON tf.id = r.tax_file_id
+WHERE tf.id = '344d134c-2160-42a0-9d48-d1477d89a4dd'
+ORDER BY re.created_at DESC;

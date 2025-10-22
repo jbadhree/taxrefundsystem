@@ -115,6 +115,41 @@ I seem to like **Marathons**, **Hackathons** and **Readathons** 😄
 
 [Problem Statement](problem_statement.md)
 
+Focus Areas - Efficiency, Reliability, Secure, Highly Available, Usability
+
+### Requirements 
+
+Functional Requirements:
+1. User goes to our web, and checks refund status
+2. If its refunded, it must say so
+3. Else, it should show the predicted date of refund
+4. If there are any problems with refund, it should show next steps
+5. Data Pipeline for AI Model
+
+
+Security Requirements
+1. Users must be authenticated and authorized
+2. All services involved must have an authentication and authorization mechanism 
+3. There must be minimal public internet exposure
+4. PII must be encrypted at rest and in transit 
+
+
+Efficiency requirement:
+Each service must have low latency (<200ms) even when there is high traffic 
+The whole solution must be highly available - 99.99% and zero down time deployments
+
+Reliability Requirements
+Info shown to the customers must be accurate / near real time
+Our System must be reliable as well - Even if parts of the system fail, rest should work
+
+Observability
+1. Alerts when there is an issue
+2. Easy to troubleshoot the issues
+
+Testability 
+1. Each component must be individually testable
+2. Strong integration tests
+
 ### High Level Design
 
 Here are the different components of the system
@@ -123,154 +158,30 @@ Here are the different components of the system
 
 Lets Make this design secure
 
+- Network Security
+- Cloud VPCs
+- Cloud Security 
+- Applicaiton Security JWT auth
+- Data Security 
+
+Performance 
+- Redis
+- Loose Coupling 
+
+### Data Pipeline 
+
+### Low Level Design 
+
+Data Model 
+
+API Design 
+
+### Specific Details
+
+- ML Model
+- Batch Job concurrency 
 
 
-
-
-• **AI Integration**: Predict refund timing when not yet processed
-
-• **User Focus**: Clear guidance on refund status and next steps
-
-### Key Requirements
-• **User Experience**: Easy refund status checking
-• **AI Predictions**: Estimated time for refund availability
-• **Security**: Handle sensitive financial data safely
-• **Scalability**: High traffic during tax season, lower year-round
-• **Reliability**: Accurate info despite external system delays
-
-### System Architecture Overview
-
-#### Core Components
-• **User Interface Layer**
-  - Web application for user interactions
-  - Mobile-responsive design
-  - Clear status indicators and action guidance
-
-• **API Gateway & Authentication**
-  - Secure user authentication
-  - Rate limiting and security controls
-  - Request routing and load balancing
-
-• **Business Logic Services**
-  - Tax refund status service
-  - User management service
-  - AI prediction service integration
-
-• **Data Layer**
-  - User data storage
-  - Tax file management
-  - Refund status tracking
-  - AI model data and predictions
-
-• **External Integrations**
-  - IRS system integration
-  - AI/ML model service
-  - Notification services
-
-#### Technology Stack
-• **Frontend**: Next.js with TypeScript
-• **Backend**: Java Spring Boot microservices
-• **Database**: PostgreSQL with Redis caching
-• **AI/ML**: Python-based prediction service
-• **Infrastructure**: Docker containers with cloud deployment
-• **Message Queue**: For async processing and batch operations
-
-### Detailed System Design
-
-#### 1. User Authentication & Authorization
-• **Multi-factor authentication** for security
-• **Role-based access control** for different user types
-• **JWT tokens** for session management
-• **Audit logging** for compliance tracking
-
-#### 2. Tax Refund Status Flow
-• **User Request** → Authentication → Tax File Lookup → Status Check → AI Prediction (if needed) → Response
-
-#### 3. AI Model Integration
-• **Training Data**: Historical refund processing times
-• **Key Features**: Filing date, income level, refund amount, previous years' data
-• **Model**: XGBoost for regression prediction
-• **Output**: Estimated days until refund availability
-
-#### 4. Data Architecture
-• **User Schema**: Personal information, authentication data
-• **Tax File Schema**: Filing details, status, timestamps
-• **Refund Schema**: Amount, status, processing timeline
-• **Prediction Schema**: AI model outputs and confidence scores
-
-#### 5. Scalability Considerations
-• **Horizontal Scaling**: Microservices architecture
-• **Caching Strategy**: Redis for frequently accessed data
-• **Database Optimization**: Indexing and query optimization
-• **Load Balancing**: Multiple service instances
-• **CDN**: Static content delivery
-
-#### 6. Security Measures
-• **Data Encryption**: At rest and in transit
-• **API Security**: Rate limiting, input validation
-• **Compliance**: SOC 2, PCI DSS considerations
-• **Monitoring**: Security event logging and alerting
-
-
-### Monitoring & Observability
-• **Application Metrics**: Response times, error rates, throughput
-• **Business Metrics**: User engagement, prediction accuracy
-• **Infrastructure Metrics**: CPU, memory, disk usage
-• **Security Metrics**: Failed login attempts, suspicious activity
-
-### Disaster Recovery
-• **Backup Strategy**: Regular database backups
-• **Failover**: Multi-region deployment
-• **Data Recovery**: Point-in-time recovery capabilities
-• **Business Continuity**: Service degradation strategies
-
----
-
-## Q&A Session
-
-### Common Questions & Answers
-
-#### Q: How do you handle the seasonal nature of tax traffic?
-• **Auto-scaling** based on traffic patterns
-• **Pre-provisioned capacity** during tax season
-• **Cost optimization** during off-peak periods
-
-#### Q: What about data privacy and compliance?
-• **End-to-end encryption** for all data
-• **SOC 2 compliance** standards
-• **Detailed audit logs** for all data access
-
-#### Q: How accurate are the AI predictions?
-• **Continuous monitoring** of prediction accuracy
-• **Model retraining** with new data
-• **Confidence scores** provided to users
-
-#### Q: How do you handle IRS system downtime?
-• **Circuit breakers** for external service failures
-• **Caching strategies** for data availability
-• **Graceful degradation** to maintain service
-
-#### Q: What's your approach to testing?
-• **Unit tests** for individual components
-• **Integration tests** for service interactions
-• **Load testing** for performance validation
-• **Security testing** for vulnerability assessment
-
----
-
-## Conclusion
-
-### Key Takeaways
-• **System Design** addresses complex tax refund requirements
-• **Security & Scalability** maintained throughout
-• **AI Integration** provides additional user value
-• **Microservices Architecture** ensures reliability
-• **Balanced Approach** between technical excellence and business needs
-
-### Final Thoughts
-• Users can **trust the system** with sensitive financial data
-• **Accurate, timely updates** about tax refunds
-• **Ready for discussion** on any aspect of the design
 
 ---
 
