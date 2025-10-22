@@ -16,8 +16,6 @@ type Config struct {
 	BatchSize            int
 	ProcessingInterval   time.Duration
 	LogLevel             string
-	SeedData             bool
-	CSVFilePath          string
 	// Pub/Sub configuration
 	GoogleCloudProject     string
 	PubSubTopicName        string
@@ -38,8 +36,6 @@ func LoadConfig() (*Config, error) {
 		BatchSize:            getEnvAsInt("BATCH_SIZE", 100),
 		ProcessingInterval:   time.Duration(getEnvAsInt("PROCESSING_INTERVAL", 60)) * time.Second,
 		LogLevel:             getEnv("LOG_LEVEL", "info"),
-		SeedData:             getEnvAsBool("SEED_DATA", true),
-		CSVFilePath:          getEnv("CSV_FILE_PATH", "./data/refunds_seed.csv"),
 		// Pub/Sub configuration
 		GoogleCloudProject:     getEnv("GOOGLE_CLOUD_PROJECT", "build-and-learn"),
 		PubSubTopicName:        getEnv("PUBSUB_SEND_REFUND_TOPIC", "send-refund-to-irs"),

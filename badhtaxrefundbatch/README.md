@@ -6,7 +6,7 @@ A Go-based batch job service that processes pending tax refunds by checking thei
 
 - **Concurrent Processing**: Uses goroutines with configurable worker limits
 - **Database Integration**: PostgreSQL with GORM ORM
-- **CSV Seeding**: Seed database with test data from CSV files
+- **Pub/Sub Integration**: Processes refunds from Pub/Sub messages sent by the tax file service
 - **Environment Configuration**: Fully configurable via environment variables
 - **JSON Error Messages**: Configurable error messages via JSON file
 - **Probability Distribution**: Configurable status probability (70% in progress, 20% error, 10% processed)

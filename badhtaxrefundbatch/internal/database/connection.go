@@ -51,9 +51,24 @@ func ConnectDB(databaseURL string) (*gorm.DB, error) {
 
 // MigrateDB runs database migrations
 func MigrateDB(db *gorm.DB) error {
-	// Auto-migrate the Refund model
-	if err := db.AutoMigrate(&Refund{}); err != nil {
-		return fmt.Errorf("failed to migrate database: %w", err)
+	// Create the refunds table in the taxrefundbatchdb schema using raw SQL
+	createTableSQL := `
+	CREATE TABLE IF NOT EXISTS taxrefundbatchdb.refunds (
+		id SERIAL PRIMARY KEY,
+		file_id VARCHAR(255) NOT NULL UNIQUE,
+		status VARCHAR(50) NOT NULL DEFAULT 'pending',
+		error_message TEXT,
+		user_id VARCHAR(255),
+		year INTEGER,
+		refund_amount VARCHAR(50),
+		eta VARCHAR(100),
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+		updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+		processed_at TIMESTAMP WITH TIME ZONE
+	)`
+
+	if err := db.Exec(createTableSQL).Error; err != nil {
+		return fmt.Errorf("failed to create refunds table: %w", err)
 	}
 
 	// Create indexes if they don't exist
@@ -67,17 +82,17 @@ func MigrateDB(db *gorm.DB) error {
 // createIndexes creates necessary database indexes
 func createIndexes(db *gorm.DB) error {
 	// Create index on status column
-	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_refunds_status ON refunds(status)").Error; err != nil {
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_refunds_status ON taxrefundbatchdb.refunds(status)").Error; err != nil {
 		return err
 	}
 
 	// Create index on file_id column
-	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_refunds_file_id ON refunds(file_id)").Error; err != nil {
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_refunds_file_id ON taxrefundbatchdb.refunds(file_id)").Error; err != nil {
 		return err
 	}
 
 	// Create index on created_at column for time-based queries
-	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_refunds_created_at ON refunds(created_at)").Error; err != nil {
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_refunds_created_at ON taxrefundbatchdb.refunds(created_at)").Error; err != nil {
 		return err
 	}
 

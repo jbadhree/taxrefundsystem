@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 
 	"cloud.google.com/go/pubsub"
 	"github.com/sirupsen/logrus"
+	"gorm.io/gorm"
 )
 
 // PubSubMessage represents the structure of messages from the tax file service
@@ -23,6 +25,49 @@ type PubSubMessage struct {
 	Year         int     `json:"year"`
 	ETA          string  `json:"eta"`
 	Timestamp    string  `json:"timestamp"`
+}
+
+// UnmarshalJSON implements custom JSON unmarshaling for PubSubMessage
+func (p *PubSubMessage) UnmarshalJSON(data []byte) error {
+	// Create a temporary struct with RefundAmount as interface{} to handle both string and number
+	type TempPubSubMessage struct {
+		FileID       string      `json:"file_id"`
+		Status       string      `json:"status"`
+		ErrorMessage *string     `json:"error_message"`
+		RefundAmount interface{} `json:"refund_amount"`
+		UserID       string      `json:"user_id"`
+		Year         int         `json:"year"`
+		ETA          string      `json:"eta"`
+		Timestamp    string      `json:"timestamp"`
+	}
+
+	var temp TempPubSubMessage
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+
+	// Copy all fields
+	p.FileID = temp.FileID
+	p.Status = temp.Status
+	p.ErrorMessage = temp.ErrorMessage
+	p.UserID = temp.UserID
+	p.Year = temp.Year
+	p.ETA = temp.ETA
+	p.Timestamp = temp.Timestamp
+
+	// Handle RefundAmount conversion
+	switch v := temp.RefundAmount.(type) {
+	case string:
+		p.RefundAmount = v
+	case float64:
+		p.RefundAmount = fmt.Sprintf("%.0f", v)
+	case int:
+		p.RefundAmount = fmt.Sprintf("%d", v)
+	default:
+		p.RefundAmount = fmt.Sprintf("%v", v)
+	}
+
+	return nil
 }
 
 // PubSubService handles Pub/Sub operations
@@ -151,6 +196,12 @@ func (p *PubSubService) PullMessages(ctx context.Context) error {
 		if err == nil && existingRefund != nil {
 			logrus.WithField("file_id", pubsubMsg.FileID).Info("Refund already exists, skipping")
 			msg.Ack()
+			return
+		}
+		// If error is "record not found", that's expected - continue with creation
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			logrus.WithError(err).WithField("file_id", pubsubMsg.FileID).Error("Failed to check if refund exists")
+			msg.Nack() // Negative acknowledge to retry later
 			return
 		}
 

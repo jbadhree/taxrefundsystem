@@ -1,0 +1,10 @@
+---
+description: Use Pulumi in `infra` folder for deployments
+globs: ["Dockerfile", "*.sh", "CHANGELOG.md"]
+alwaysApply: true
+---
+
+Whenever you need to deploy a docker image use  code in `infra` folder 
+Update the latest image version in pulumi config before deployment
+use .venv in the `infra` folder 
+Pulimi passphrase is empty string

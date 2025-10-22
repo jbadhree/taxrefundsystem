@@ -187,6 +187,9 @@ db_user_instance = gcp.sql.User(
     opts=pulumi.ResourceOptions(depends_on=[database])
 )
 
+# Note: Database schemas are created by the services themselves during migration
+# The init-db.sql script handles schema creation when the database is first set up
+
 # Create Redis instance
 redis_instance = gcp.redis.Instance(
     "taxrefund-redis",
@@ -588,14 +591,6 @@ batch_job = gcp.cloudrunv2.Job(
                         gcp.cloudrunv2.JobTemplateTemplateContainerEnvArgs(
                             name="LOG_LEVEL",
                             value="info"
-                        ),
-                        gcp.cloudrunv2.JobTemplateTemplateContainerEnvArgs(
-                            name="SEED_DATA",
-                            value="true"
-                        ),
-                        gcp.cloudrunv2.JobTemplateTemplateContainerEnvArgs(
-                            name="CSV_FILE_PATH",
-                            value="./data/refunds_seed.csv"
                         ),
                         gcp.cloudrunv2.JobTemplateTemplateContainerEnvArgs(
                             name="GOOGLE_CLOUD_PROJECT",

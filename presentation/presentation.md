@@ -64,20 +64,22 @@ I seem to like **Marathons**, **Hackathons** and **Readathons** 😄
 ## Professional Achievements
 
 ### Credit Externalization Platform - KKR & PayPal Partnership
-• **Project Overview**: Led the design of a platform for KKR's acquisition of €40bn European BNPL loans from PayPal
+• **Project Overview**: 
+    - Led the design of a platform for KKR's acquisition of €40bn European BNPL loans from PayPal
+    - Converted this in to a re-useable platform which is currently being used for Blue Owl, an investor in US
 
 • **Business Impact**: Enabled PayPal to free up capital while KKR gained access to diversified consumer loan portfolio
 
-• **Platform Architecture**: Built reusable platform for future credit externalization deals across different markets
-
 • **Technical Components**:
-  - **Data Lake Setup**: Centralized data storage and processing infrastructure
-  - **BigQuery Database**: Analytics and reporting capabilities for loan portfolio data
-  - **GKE Batch Jobs**: Dynamic eligibility filters for loan processing and selection
-  - **Risk Platform Integration**: Connected with existing risk assessment systems
-  - **KKR Systems Interface**: Seamless data transfer and reporting to investment systems
+  - **BigQuery Data Lake**: Centralized data storage, Analytics and reporting 
+  - **Business UI**: A frontend where business sets the rules and tracks progress and communicates with backend
+  - **GKE Batch Jobs**: Config Based eligibility filters and report criteria. Daily, Weekly and Monthly Jobs
+  - **Risk Platform Integration**: Connected with PayPal Risk Platform
+  - **Client Systems Interface**: Seamless data transfer and reporting to investment company's systems
 
-• **Partnership Success**: Transaction successfully closed in 2023, with platform extended for future deals
+• **Partnership Success**: Transaction successfully closed in 2023-2024
+
+• **Platform Reused**: Currently being re-used in US and In discussions in other markets
 
 • **References**: 
   - [PayPal-KKR Deal Announcement](https://www.fintechfutures.com/bnpl-payments/paypal-to-sell-up-to-40bn-of-european-bnpl-loans-to-kkr)

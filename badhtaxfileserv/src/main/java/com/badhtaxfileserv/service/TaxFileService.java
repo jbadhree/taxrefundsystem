@@ -75,10 +75,10 @@ public class TaxFileService {
             // Message format matches batch job database structure: file_id, status, error_message
             try {
                 String message = String.format(
-                    "{\"file_id\":\"%s\",\"status\":\"%s\",\"error_message\":null,\"refund_amount\":%s,\"user_id\":\"%s\",\"year\":%d,\"eta\":\"%s\",\"timestamp\":\"%s\"}",
+                    "{\"file_id\":\"%s\",\"status\":\"%s\",\"error_message\":null,\"refund_amount\":\"%s\",\"user_id\":\"%s\",\"year\":%d,\"eta\":\"%s\",\"timestamp\":\"%s\"}",
                     taxFile.getId(),  // file_id - matches batch job database field
                     "pending",        // status - matches batch job database field  
-                    request.getRefund(),
+                    request.getRefund().toString(),  // Convert to string
                     taxFile.getUserId(),
                     taxFile.getYear(),
                     refund.getRefundEta(),

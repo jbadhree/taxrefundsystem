@@ -1,2 +1,4 @@
 .DS_Store
 
+cloud_sql_proxy
+*.log

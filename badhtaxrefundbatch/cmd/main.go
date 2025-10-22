@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,7 +9,6 @@ import (
 
 	"badhtaxrefundbatch/internal/config"
 	"badhtaxrefundbatch/internal/database"
-	"badhtaxrefundbatch/internal/seeder"
 	"badhtaxrefundbatch/internal/services"
 
 	"github.com/sirupsen/logrus"
@@ -28,8 +26,6 @@ func main() {
 		"max_concurrent_workers": cfg.MaxConcurrentWorkers,
 		"batch_size":             cfg.BatchSize,
 		"processing_interval":    cfg.ProcessingInterval,
-		"seed_data":              cfg.SeedData,
-		"csv_file_path":          cfg.CSVFilePath,
 	}).Info("Starting BadhTaxRefundBatch")
 
 	// Connect to database
@@ -68,12 +64,7 @@ func main() {
 		}
 	}()
 
-	// Seed data if requested
-	if cfg.SeedData {
-		if err := seedData(refundRepo, cfg.CSVFilePath); err != nil {
-			logrus.WithError(err).Fatal("Failed to seed data")
-		}
-	}
+	// Note: Seed data functionality removed - batch job now only processes real refunds from Pub/Sub
 
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -161,27 +152,4 @@ func processRefundsOnce(ctx context.Context, processor *services.RefundProcessor
 	return processor.ProcessPendingRefunds(ctx)
 }
 
-// seedData seeds the database with sample data
-func seedData(refundRepo *database.RefundRepository, csvFilePath string) error {
-	logrus.Info("Starting data seeding")
-
-	// Check if CSV file exists
-	if _, err := os.Stat(csvFilePath); os.IsNotExist(err) {
-		logrus.WithField("file_path", csvFilePath).Info("CSV file does not exist, creating sample data")
-
-		// Create sample CSV file
-		seeder := seeder.NewCSVSeeder(refundRepo)
-		if err := seeder.CreateSampleCSV(csvFilePath, 100); err != nil {
-			return fmt.Errorf("failed to create sample CSV: %w", err)
-		}
-	}
-
-	// Seed from CSV
-	seeder := seeder.NewCSVSeeder(refundRepo)
-	if err := seeder.SeedRefundsFromCSV(csvFilePath); err != nil {
-		return fmt.Errorf("failed to seed from CSV: %w", err)
-	}
-
-	logrus.Info("Data seeding completed successfully")
-	return nil
-}
+// Note: seedData function removed - batch job now only processes real refunds from Pub/Sub

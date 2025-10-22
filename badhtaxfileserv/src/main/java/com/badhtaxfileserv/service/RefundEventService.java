@@ -3,8 +3,10 @@ package com.badhtaxfileserv.service;
 import com.badhtaxfileserv.dto.ProcessRefundEventRequest;
 import com.badhtaxfileserv.entity.Refund;
 import com.badhtaxfileserv.entity.RefundEvent;
+import com.badhtaxfileserv.entity.TaxFile;
 import com.badhtaxfileserv.repository.RefundEventRepository;
 import com.badhtaxfileserv.repository.RefundRepository;
+import com.badhtaxfileserv.repository.TaxFileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -20,6 +22,7 @@ public class RefundEventService {
     
     private final RefundRepository refundRepository;
     private final RefundEventRepository refundEventRepository;
+    private final TaxFileRepository taxFileRepository;
     private final TaxFileCacheServiceInterface cacheService;
     
     @Transactional
@@ -27,50 +30,54 @@ public class RefundEventService {
         log.info("Processing refund event: {} for file ID: {}", request.getType(), request.getFileId());
         
         UUID fileId = UUID.fromString(request.getFileId());
+        
+        // Try to find existing refund, or create one if tax file exists
         Refund refund = refundRepository.findByTaxFileId(fileId)
-                .orElseThrow(() -> new RuntimeException("Refund not found for file ID: " + request.getFileId()));
+                .orElseGet(() -> {
+                    log.info("Refund not found for file ID: {}, attempting to create one", request.getFileId());
+                    return createRefundForTaxFile(fileId);
+                });
         
-        RefundEvent.EventType eventType = RefundEvent.EventType.fromValue(request.getType());
-        Refund.RefundStatus currentStatus = refund.getRefundStatus();
-        
-        // Process event based on type
-        boolean statusChanged = false;
-        switch (eventType) {
-            case REFUND_INPROGRESS:
-                if (currentStatus == Refund.RefundStatus.PENDING) {
-                    refund.setRefundStatus(Refund.RefundStatus.IN_PROGRESS);
-                    refundRepository.save(refund);
-                    statusChanged = true;
-                    log.info("Updated refund status to IN_PROGRESS");
-                } else {
-                    log.info("Refund already in progress, skipping event");
-                }
-                break;
-                
-            case REFUND_APPROVED:
-                refund.setRefundStatus(Refund.RefundStatus.APPROVED);
-                refundRepository.save(refund);
-                statusChanged = true;
-                log.info("Updated refund status to APPROVED");
-                break;
-                
-            case REFUND_REJECTED:
-                refund.setRefundStatus(Refund.RefundStatus.REJECTED);
-                refundRepository.save(refund);
-                statusChanged = true;
-                log.info("Updated refund status to REJECTED");
-                break;
-                
-            case REFUND_ERROR:
-                refund.setRefundStatus(Refund.RefundStatus.ERROR);
-                if (request.getData().getErrorReasons() != null) {
-                    // Convert error reasons to JSON string
-                    refund.setRefundErrors(convertErrorReasonsToJson(request.getData().getErrorReasons()));
-                }
-                refundRepository.save(refund);
-                statusChanged = true;
-                log.info("Updated refund status to ERROR");
-                break;
+               RefundEvent.EventType eventType = RefundEvent.EventType.fromValue(request.getType());
+               Refund.RefundStatus currentStatus = refund.getRefundStatus();
+               
+               // Process event based on type
+               boolean statusChanged = false;
+               switch (eventType) {
+                   case REFUND_INPROGRESS:
+                       if (currentStatus == Refund.RefundStatus.PENDING) {
+                           refund.setRefundStatus(Refund.RefundStatus.IN_PROGRESS);
+                           refundRepository.save(refund);
+                           statusChanged = true;
+                           log.info("Updated refund status to IN_PROGRESS");
+                       } else {
+                           log.info("Refund already in progress, skipping event");
+                       }
+                       break;
+                       
+                   case REFUND_APPROVED:
+                       refund.setRefundStatus(Refund.RefundStatus.APPROVED);
+                       refundRepository.save(refund);
+                       statusChanged = true;
+                       log.info("Updated refund status to APPROVED");
+                       break;
+                       
+                   case REFUND_REJECTED:
+                       refund.setRefundStatus(Refund.RefundStatus.REJECTED);
+                       refundRepository.save(refund);
+                       statusChanged = true;
+                       log.info("Updated refund status to REJECTED");
+                       break;
+                       
+                   case REFUND_ERROR:
+                       refund.setRefundStatus(Refund.RefundStatus.ERROR);
+                       if (request.getData().getErrorReasons() != null) {
+                           refund.setRefundErrors(convertErrorReasonsToJson(request.getData().getErrorReasons()));
+                       }
+                       refundRepository.save(refund);
+                       statusChanged = true;
+                       log.info("Updated refund status to ERROR");
+                       break;
         }
         
         // Invalidate cache if status changed
@@ -92,6 +99,22 @@ public class RefundEventService {
         
         refundEventRepository.save(event);
         log.info("Created refund event record");
+    }
+    
+    private Refund createRefundForTaxFile(UUID fileId) {
+        // Find the tax file
+        TaxFile taxFile = taxFileRepository.findById(fileId)
+                .orElseThrow(() -> new RuntimeException("Tax file not found for file ID: " + fileId));
+        
+        // Create a new refund record
+        Refund refund = Refund.builder()
+                .taxFile(taxFile)
+                .refundStatus(Refund.RefundStatus.PENDING) // Start as pending
+                .build();
+        
+        refund = refundRepository.save(refund);
+        log.info("Created new refund record for file ID: {}", fileId);
+        return refund;
     }
     
     private String convertErrorReasonsToJson(java.util.List<ProcessRefundEventRequest.EventData.ErrorDetail> errorReasons) {
