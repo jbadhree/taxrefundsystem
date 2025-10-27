@@ -556,6 +556,7 @@ batch_job = gcp.cloudrunv2.Job(
     "badhtaxrefundbatch-job",
     name=batch_job_name,
     location=region,
+    deletion_protection=False,
     template=gcp.cloudrunv2.JobTemplateArgs(
         template=gcp.cloudrunv2.JobTemplateTemplateArgs(
             containers=[
